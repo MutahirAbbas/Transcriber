@@ -8,6 +8,7 @@ import { DetailHeader } from '../components/detail/DetailHeader'
 import { TranscriptPanel } from '../components/detail/TranscriptPanel'
 import { BackIcon } from '../components/Icons'
 import { card } from '../lib/ui'
+import { useTitle } from '../lib/useTitle'
 
 const TRANSCRIPT_COL = 'xl:flex-[999_1_520px] min-w-0'
 const ANALYSIS_COL = 'order-first xl:order-none xl:flex-[1_1_360px] min-w-0 xl:max-w-[460px]'
@@ -16,7 +17,7 @@ function Skeleton({ className, lines }: { className: string; lines: number }) {
   return (
     <div aria-hidden="true" className={`${card} p-5 flex flex-col gap-3 ${className}`}>
       {Array.from({ length: lines }, (_, i) => (
-        <div key={i} className={`h-3 rounded-bar bg-border-subtle animate-pulse ${i % 3 === 2 ? 'w-2/3' : 'w-full'}`} />
+        <div key={i} className={`h-3 rounded-bar bg-border-subtle motion-safe:animate-pulse ${i % 3 === 2 ? 'w-2/3' : 'w-full'}`} />
       ))}
     </div>
   )
@@ -26,6 +27,7 @@ export function CallDetailPage() {
   const { id = '' } = useParams()
   const { data: call, error, isLoading } = useCall(id)
   const audioRef = useRef<HTMLAudioElement>(null)
+  useTitle(call ? (call.agent ?? 'Call') : '')
 
   const seek = useCallback((seconds: number) => {
     const audio = audioRef.current

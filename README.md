@@ -21,7 +21,7 @@ results/        transcripts + benchmark CSVs
 
 ```bash
 brew install ffmpeg
-python3 -m venv .venv && source .venv/bin/activate
+python3.11 -m venv .venv && source .venv/bin/activate     # brew install python@3.11
 pip install -r requirements.txt
 cp .env.example .env   # fill keys; whisper_local needs none
 export $(grep -v '^#' .env | xargs)
@@ -82,13 +82,34 @@ Output: `results/benchmark_<ts>.csv` and a summary table:
 
 ## Web interface (v1)
 
-Design approved; build spec in `BUILD_BRIEF.md`, reference screens in `design/`.
-FastAPI backend wrapping `pipeline.process_call`, Vite + React front end.
+Build spec in `BUILD_BRIEF.md`, reference screens in `design/`. FastAPI backend
+(`api/`) wrapping `pipeline.process_call`, Vite + React front end (`web/`).
+
+```bash
+uvicorn api.main:app --reload --port 8000          # loads .env itself; SQLite at data/call-bench.db
+cd web && npm install && npm run dev               # http://localhost:5173 (proxies /api → 8000)
+```
+
+One background worker processes uploads one at a time; anything unfinished is
+re-queued when the server restarts. To try the UI on calls you've already run
+through the pipeline, without re-transcribing:
+
+```bash
+python scripts/import_processed.py                 # results/processed/*.json → DB (redacted, idempotent)
+```
+
+Tests: `pytest` (backend, no API calls) and `cd web && npm test` (front-end logic).
+
+**Redaction.** Transcripts are redacted before scoring and before anything is
+stored (`api/redaction.py`): SSNs, card numbers, phone numbers, other long digit
+runs (bank / routing / policy numbers), Medicare IDs, dates of birth and emails,
+typed or spoken. It is regex-based, so customer **names and street addresses are
+not removed**, and the audio itself is untouched.
 
 ## Roadmap
 
 - [x] Design the upload → transcript → analysis interface
-- [ ] Build it (`BUILD_BRIEF.md`)
+- [x] Build it (`BUILD_BRIEF.md`)
 - [ ] pyannote diarization for mono audio in `whisper_local`
 - [ ] real DER via `pyannote.metrics` against time-aligned references
 - [ ] Vici folder watcher → `pipeline.process_call` → Mongo

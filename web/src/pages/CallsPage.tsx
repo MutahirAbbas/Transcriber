@@ -9,8 +9,10 @@ import { StatsRow } from '../components/calls/StatsRow'
 import { UploadZone } from '../components/calls/UploadZone'
 import { btnPrimary, btnSecondary } from '../lib/ui'
 import { useDebounced } from '../lib/useDebounced'
+import { useTitle } from '../lib/useTitle'
 
 export function CallsPage() {
+  useTitle('Calls')
   const fileInput = useRef<HTMLInputElement>(null)
   const { data: agents = [] } = useAgents()
   const [agent, setAgent] = useState('')
