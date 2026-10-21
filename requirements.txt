@@ -1,0 +1,10 @@
+httpx>=0.27
+assemblyai>=0.35
+mlx-whisper>=0.4   # Apple Silicon only; skip on Linux
+anthropic>=0.40
+pyyaml>=6.0
+# web backend (v1 interface)
+fastapi>=0.115
+uvicorn[standard]>=0.30
+sqlmodel>=0.0.22
+python-multipart>=0.0.9

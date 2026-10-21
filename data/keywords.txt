@@ -1,0 +1,17 @@
+# One domain term per line. These get passed to each provider as keyword boosts
+# and used for the keyword-recall metric. Replace with TQC's real carriers/terms.
+final expense
+burial insurance
+level benefit
+graded benefit
+guaranteed issue
+premium
+beneficiary
+underwriting
+Mutual of Omaha
+Aetna
+Americo
+Transamerica
+Gerber
+social security
+direct express

@@ -1,0 +1,52 @@
+# Final-expense sales call scorecard.
+# This is a STARTER. The real one comes from Leo / the top closers — replace freely.
+# Each category: weight (sums to 100) and what a 10 vs a 3 looks like.
+
+categories:
+  opening:
+    weight: 15
+    description: >
+      Agent introduces self and company clearly, states the reason for the call,
+      confirms they're speaking to the right person, sets a friendly tone within
+      the first 30 seconds.
+  discovery:
+    weight: 20
+    description: >
+      Agent asks about the customer's situation before pitching: age, health,
+      existing coverage, who they want to protect, budget. Listens more than talks
+      in this phase.
+  value_presentation:
+    weight: 20
+    description: >
+      Agent ties the product to what the customer said they care about (funeral
+      costs, not burdening family). Explains coverage amount, premium, and type
+      (level / graded / guaranteed issue) in plain language.
+  objection_handling:
+    weight: 20
+    description: >
+      Agent acknowledges objections (price, "need to think", "talk to my spouse",
+      "already have coverage") without arguing, isolates the real concern, and
+      responds with relevant information or reassurance.
+  compliance:
+    weight: 15
+    description: >
+      Agent states the call is recorded, confirms consent, does not misrepresent
+      the product, does not pressure or use fear tactics, discloses carrier and
+      licensed-agent status where required.
+  close:
+    weight: 10
+    description: >
+      Agent asks for the sale or next concrete step, handles the application /
+      enrollment handoff smoothly, confirms details back to the customer.
+
+# Phrases that MUST appear (compliance). Used for a hard flag, not the score.
+required_phrases:
+  - "recorded"
+  - "licensed"
+
+# Things that should never happen. Any hit is flagged.
+red_flags:
+  - guarantees coverage without underwriting questions
+  - states the policy "never" increases in price when it's graded/term
+  - continues after the customer clearly asks to end the call or be removed
+  - misstates the carrier name

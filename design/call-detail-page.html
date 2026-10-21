@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Call detail — transcript and analysis</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F3F4F6}
+a{color:#2F4BC9;text-decoration:none}a:hover{color:#1F37A3}
+</style>
+</helmet>
+<div style="min-height: 1420px; display: flex; flex-wrap: wrap; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171A; background: #F3F4F6; font-size: 14px; line-height: 1.5;">
+
+  <!-- sidebar -->
+  <nav aria-label="Main" style="flex: 0 0 220px; min-width: 0; background: #FFFFFF; border-right: 1px solid #E3E5EA; padding: 24px 16px; display: flex; flex-direction: column; gap: 6px; box-sizing: border-box;">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 8px 20px;">
+      <div style="width: 28px; height: 28px; border-radius: 7px; background: #15171A; display: flex; align-items: center; justify-content: center;">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"><path d="M4 12v2M8 8v8M12 5v14M16 9v6M20 11v3"/></svg>
+      </div>
+      <span style="font-weight: 600; font-size: 15px; letter-spacing: -0.01em;">Call Analyzer</span>
+    </div>
+    <a href="Main.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: 8px; background: #EEF0F4; color: #15171A; font-weight: 500; min-height: 44px; box-sizing: border-box;">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+      Calls
+    </a>
+    <a href="#agents" style="display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: 8px; color: #4B5563; min-height: 44px; box-sizing: border-box;">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>
+      Agents
+    </a>
+    <a href="#scorecard" style="display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: 8px; color: #4B5563; min-height: 44px; box-sizing: border-box;">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l2 2 4-4"/><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+      Scorecard
+    </a>
+    <a href="#settings" style="display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: 8px; color: #4B5563; min-height: 44px; box-sizing: border-box;">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      Settings
+    </a>
+    <div style="flex-grow: 1;"></div>
+    <div style="padding: 12px 10px; border-top: 1px solid #E3E5EA; display: flex; flex-direction: column; gap: 4px;">
+      <span style="font-size: 11px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.06em;">Transcriber</span>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #15171A;">whisper-large-v3-turbo · local</span>
+    </div>
+  </nav>
+
+  <!-- content -->
+  <main style="flex: 999 1 560px; min-width: 0; padding: 28px 40px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px;">
+
+    <a href="Main.dc.html" style="display: inline-flex; align-items: center; gap: 6px; color: #6B7280; font-size: 13px; min-height: 32px;">
+      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      All calls
+    </a>
+
+    <!-- header card -->
+    <header style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 12px; padding: 22px 26px; display: flex; flex-wrap: wrap; align-items: center; gap: 28px;">
+      <div style="display: flex; align-items: center; gap: 18px; flex: 1 1 360px; min-width: 0;">
+        <div style="position: relative; width: 84px; height: 84px; flex-shrink: 0;">
+          <svg aria-hidden="true" width="84" height="84" viewBox="0 0 84 84"><circle cx="42" cy="42" r="36" fill="none" stroke="#EEF0F4" stroke-width="8"/><circle cx="42" cy="42" r="36" fill="none" stroke="#B45309" stroke-width="8" stroke-linecap="round" stroke-dasharray="226" stroke-dashoffset="75" transform="rotate(-90 42 42)"/></svg>
+          <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <span style="font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1;">67</span>
+            <span style="font-size: 10px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px;">Score</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <h1 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.015em;">Keisha Monroe</h1>
+            <span style="display: inline-block; padding: 3px 10px; border-radius: 999px; background: #EEF0F4; color: #374151; font-size: 12px; font-weight: 500;">Callback</span>
+          </div>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280;">20261021-124455 · Today 12:44 PM · 11:07</div>
+          <p style="margin: 2px 0 0; color: #374151; max-width: 560px;">Strong rapport and a clear product explanation, but the "need to talk to my husband" objection went unanswered and the call ended without a firm callback time.</p>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; flex: 0 1 260px; min-width: 220px;">
+        <audio controls aria-label="Call recording" style="width: 100%;"></audio>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" style="flex: 1; min-height: 40px; border-radius: 8px; border: 1px solid #D5D8DF; background: #FFFFFF; font: inherit; font-size: 13px; font-weight: 500; color: #15171A; cursor: pointer;">Download transcript</button>
+          <button type="button" style="flex: 1; min-height: 40px; border-radius: 8px; border: 1px solid #D5D8DF; background: #FFFFFF; font: inherit; font-size: 13px; font-weight: 500; color: #15171A; cursor: pointer;">Re-score</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- two columns -->
+    <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+      <!-- transcript -->
+      <section aria-label="Transcript" style="flex: 999 1 520px; min-width: 0; background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 12px; display: flex; flex-direction: column;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 20px; border-bottom: 1px solid #E3E5EA;">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 600;">Transcript</h2>
+          <div style="display: flex; gap: 14px; align-items: center; font-size: 12px; color: #6B7280;">
+            <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 3px; background: #2F4BC9;"></span>Agent</span>
+            <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 3px; background: #9CA3AF;"></span>Customer</span>
+            <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 3px; background: #FDE7CF; border: 1px solid #B45309;"></span>Coachable moment</span>
+          </div>
+        </div>
+        <div style="padding: 8px 20px 20px; display: flex; flex-direction: column; gap: 2px;">
+
+          <div style="display: flex; gap: 14px; padding: 10px 0;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280; width: 44px; flex-shrink: 0; padding-top: 3px;">00:02</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;"><span style="font-size: 12px; font-weight: 600; color: #2F4BC9;">Agent</span><p style="margin: 0; color: #15171A;">Hi, is this Dorothy? This is Keisha calling from Senior Benefits on a recorded line. I'm a licensed agent following up on the final expense information you requested.</p></div>
+          </div>
+          <div style="display: flex; gap: 14px; padding: 10px 0;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280; width: 44px; flex-shrink: 0; padding-top: 3px;">00:14</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;"><span style="font-size: 12px; font-weight: 600; color: #6B7280;">Customer</span><p style="margin: 0; color: #15171A;">Oh yes, I did send that in. I've been meaning to look into something so the kids don't have to worry.</p></div>
+          </div>
+          <div style="display: flex; gap: 14px; padding: 10px 0;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280; width: 44px; flex-shrink: 0; padding-top: 3px;">00:21</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;"><span style="font-size: 12px; font-weight: 600; color: #2F4BC9;">Agent</span><p style="margin: 0; color: #15171A;">That's exactly what this is for. Before I go into the options, can I ask a few quick questions? How old are you, and do you have any coverage in place right now?</p></div>
+          </div>
+          <div style="display: flex; gap: 14px; padding: 10px 0;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280; width: 44px; flex-shrink: 0; padding-top: 3px;">00:33</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;"><span style="font-size: 12px; font-weight: 600; color: #6B7280;">Customer</span><p style="margin: 0; color: #15171A;">I'm seventy-one. There was a small policy through my husband's work but that ended when he retired.</p></div>
+          </div>
+          <div style="display: flex; gap: 14px; padding: 10px 0;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280; width: 44px; flex-shrink: 0; padding-top: 3px;">03:48</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;"><span style="font-size: 12px; font-weight: 600; color: #2F4BC9;">Agent</span><p style="margin: 0; color: #15171A;">So for ten thousand in coverage with Mutual of Omaha, you'd be looking at about fifty-two dollars a month. That's level benefit, so the premium never goes up and the coverage never goes down.</p></div>
+          </div>
+          <div style="display: flex; gap: 14px; padding: 10px 0;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280; width: 44px; flex-shrink: 0; padding-top: 3px;">04:05</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;"><span style="font-size: 12px; font-weight: 600; color: #6B7280;">Customer</span><p style="margin: 0; color: #15171A;">Fifty-two… that's a bit more than I was thinking. I'd really need to talk to my husband before I do anything.</p></div>
+          </div>
+
+          <div style="display: flex; gap: 14px; padding: 12px 14px; margin: 4px -14px; background: #FDF3E7; border: 1px solid #F0C9A0; border-radius: 10px;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #92400E; width: 44px; flex-shrink: 0; padding-top: 3px;">04:12</span>
+            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+              <div style="display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 12px; font-weight: 600; color: #2F4BC9;">Agent</span><p style="margin: 0; color: #15171A;">Of course, totally understand. Well, let me tell you a bit more about the graded option as well, which comes in a little lower…</p></div>
+              <div style="border-top: 1px solid #F0C9A0; padding-top: 8px; display: flex; flex-direction: column; gap: 4px;">
+                <span style="font-size: 12px; font-weight: 600; color: #92400E;">Coachable moment · Objection handling</span>
+                <p style="margin: 0; font-size: 13px; color: #78350F;">Two objections surfaced (price, spouse) and both were skipped. Better: acknowledge the price, ask what range would feel comfortable, then offer to include her husband on a scheduled callback so the decision happens with both of them on the line.</p>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 14px; padding: 10px 0;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280; width: 44px; flex-shrink: 0; padding-top: 3px;">09:40</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;"><span style="font-size: 12px; font-weight: 600; color: #6B7280;">Customer</span><p style="margin: 0; color: #15171A;">Let me think about it and I'll give you a call back.</p></div>
+          </div>
+
+          <div style="display: flex; gap: 14px; padding: 12px 14px; margin: 4px -14px; background: #FDF3E7; border: 1px solid #F0C9A0; border-radius: 10px;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #92400E; width: 44px; flex-shrink: 0; padding-top: 3px;">09:44</span>
+            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+              <div style="display: flex; flex-direction: column; gap: 3px;"><span style="font-size: 12px; font-weight: 600; color: #2F4BC9;">Agent</span><p style="margin: 0; color: #15171A;">Sure, that works. You have my number, just give me a ring whenever you're ready. Thanks so much, Dorothy.</p></div>
+              <div style="border-top: 1px solid #F0C9A0; padding-top: 8px; display: flex; flex-direction: column; gap: 4px;">
+                <span style="font-size: 12px; font-weight: 600; color: #92400E;">Coachable moment · Close</span>
+                <p style="margin: 0; font-size: 13px; color: #78350F;">Open-ended callbacks rarely happen. Better: propose a specific day and time, confirm it back, and send a text reminder before hanging up.</p>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 14px; padding: 10px 0;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280; width: 44px; flex-shrink: 0; padding-top: 3px;">09:58</span>
+            <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;"><span style="font-size: 12px; font-weight: 600; color: #6B7280;">Customer</span><p style="margin: 0; color: #15171A;">Thank you, bye now.</p></div>
+          </div>
+
+          <div style="padding: 14px 0 0; display: flex; justify-content: center;">
+            <button type="button" style="min-height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #D5D8DF; background: #FFFFFF; font: inherit; font-size: 13px; font-weight: 500; color: #15171A; cursor: pointer;">Show full transcript (84 turns)</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- analysis -->
+      <aside aria-label="AI analysis" style="flex: 1 1 360px; min-width: 0; max-width: 460px; display: flex; flex-direction: column; gap: 16px;">
+
+        <section style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 600;">Scorecard</h2>
+
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline;"><span style="font-weight: 500;">Opening</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">9<span style="color: #6B7280;">/10</span></span></div>
+            <div style="height: 6px; border-radius: 3px; background: #EEF0F4; overflow: hidden;"><div style="width: 90%; height: 100%; background: #1B7F5A;"></div></div>
+            <span style="font-size: 12px; color: #6B7280;">Recorded-line and licensed-agent disclosure in the first 10 seconds.</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline;"><span style="font-weight: 500;">Discovery</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">8<span style="color: #6B7280;">/10</span></span></div>
+            <div style="height: 6px; border-radius: 3px; background: #EEF0F4; overflow: hidden;"><div style="width: 80%; height: 100%; background: #1B7F5A;"></div></div>
+            <span style="font-size: 12px; color: #6B7280;">Age and existing coverage asked. Budget never asked — that surfaced later as the objection.</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline;"><span style="font-weight: 500;">Value presentation</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">8<span style="color: #6B7280;">/10</span></span></div>
+            <div style="height: 6px; border-radius: 3px; background: #EEF0F4; overflow: hidden;"><div style="width: 80%; height: 100%; background: #1B7F5A;"></div></div>
+            <span style="font-size: 12px; color: #6B7280;">Level benefit explained plainly and tied back to "the kids don't have to worry".</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline;"><span style="font-weight: 500;">Objection handling</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">3<span style="color: #6B7280;">/10</span></span></div>
+            <div style="height: 6px; border-radius: 3px; background: #EEF0F4; overflow: hidden;"><div style="width: 30%; height: 100%; background: #B42318;"></div></div>
+            <span style="font-size: 12px; color: #6B7280;">Price and spouse objections both acknowledged then bypassed (04:12).</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline;"><span style="font-weight: 500;">Compliance</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">10<span style="color: #6B7280;">/10</span></span></div>
+            <div style="height: 6px; border-radius: 3px; background: #EEF0F4; overflow: hidden;"><div style="width: 100%; height: 100%; background: #1B7F5A;"></div></div>
+            <span style="font-size: 12px; color: #6B7280;">All required phrases present. No red flags.</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline;"><span style="font-weight: 500;">Close</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">4<span style="color: #6B7280;">/10</span></span></div>
+            <div style="height: 6px; border-radius: 3px; background: #EEF0F4; overflow: hidden;"><div style="width: 40%; height: 100%; background: #B45309;"></div></div>
+            <span style="font-size: 12px; color: #6B7280;">No ask for the sale, no scheduled callback (09:44).</span>
+          </div>
+        </section>
+
+        <section style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 600;">Compliance</h2>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 10px;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B7F5A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg><span>"Recorded line" stated <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280;">00:02</span></span></div>
+            <div style="display: flex; align-items: center; gap: 10px;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B7F5A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg><span>"Licensed agent" stated <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280;">00:05</span></span></div>
+            <div style="display: flex; align-items: center; gap: 10px;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B7F5A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg><span>Carrier named correctly</span></div>
+            <div style="display: flex; align-items: center; gap: 10px;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B7F5A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg><span>No pressure or fear language</span></div>
+          </div>
+        </section>
+
+        <section style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 600;">Strengths</h2>
+          <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: #374151;">
+            <li>Warm, unhurried opening — customer volunteered her motivation within 15 seconds.</li>
+            <li>Premium and coverage type explained in one plain sentence.</li>
+            <li>Never interrupted the customer.</li>
+          </ul>
+        </section>
+
+        <section style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 600;">Work on next</h2>
+          <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: #374151;">
+            <li>Ask about budget during discovery, before quoting.</li>
+            <li>When a spouse is mentioned, offer a three-way callback on the spot.</li>
+            <li>Every callback gets a day and a time.</li>
+          </ul>
+        </section>
+
+        <div style="font-size: 12px; color: #6B7280; padding: 0 4px;">Scored by Claude · scorecard v3 · transcribed locally with whisper-large-v3-turbo · 1.2× real time</div>
+      </aside>
+    </div>
+
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":1420}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

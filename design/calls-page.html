@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Calls — upload and library</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F3F4F6}
+a{color:#2F4BC9;text-decoration:none}a:hover{color:#1F37A3}
+</style>
+</helmet>
+<div style="min-height: 960px; display: flex; flex-wrap: wrap; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #15171A; background: #F3F4F6; font-size: 14px; line-height: 1.5;">
+
+  <!-- sidebar -->
+  <nav aria-label="Main" style="flex: 0 0 220px; min-width: 0; background: #FFFFFF; border-right: 1px solid #E3E5EA; padding: 24px 16px; display: flex; flex-direction: column; gap: 6px; box-sizing: border-box;">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 8px 20px;">
+      <div style="width: 28px; height: 28px; border-radius: 7px; background: #15171A; display: flex; align-items: center; justify-content: center;">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"><path d="M4 12v2M8 8v8M12 5v14M16 9v6M20 11v3"/></svg>
+      </div>
+      <span style="font-weight: 600; font-size: 15px; letter-spacing: -0.01em;">Call Analyzer</span>
+    </div>
+    <a href="Main.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: 8px; background: #EEF0F4; color: #15171A; font-weight: 500; min-height: 44px; box-sizing: border-box;">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+      Calls
+    </a>
+    <a href="#agents" style="display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: 8px; color: #4B5563; min-height: 44px; box-sizing: border-box;">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>
+      Agents
+    </a>
+    <a href="#scorecard" style="display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: 8px; color: #4B5563; min-height: 44px; box-sizing: border-box;">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l2 2 4-4"/><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+      Scorecard
+    </a>
+    <a href="#settings" style="display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: 8px; color: #4B5563; min-height: 44px; box-sizing: border-box;">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      Settings
+    </a>
+    <div style="flex-grow: 1;"></div>
+    <div style="padding: 12px 10px; border-top: 1px solid #E3E5EA; display: flex; flex-direction: column; gap: 4px;">
+      <span style="font-size: 11px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.06em;">Transcriber</span>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #15171A;">whisper-large-v3-turbo · local</span>
+    </div>
+  </nav>
+
+  <!-- content -->
+  <main style="flex: 999 1 560px; min-width: 0; padding: 32px 40px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px;">
+
+    <header style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em;">Calls</h1>
+        <p style="margin: 0; color: #6B7280;">Upload recordings. Each one is transcribed, scored against the scorecard, and ready for review in a minute or two.</p>
+      </div>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button type="button" style="min-height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid #D5D8DF; background: #FFFFFF; color: #15171A; font: inherit; font-weight: 500; cursor: pointer;">Export CSV</button>
+        <button type="button" style="min-height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid #15171A; background: #15171A; color: #FFFFFF; font: inherit; font-weight: 500; cursor: pointer;">Upload recordings</button>
+      </div>
+    </header>
+
+    <!-- upload zone -->
+    <section aria-label="Upload" style="background: #FFFFFF; border: 1.5px dashed #B9BEC9; border-radius: 12px; padding: 28px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 24px;">
+      <div style="width: 48px; height: 48px; border-radius: 10px; background: #EEF0F4; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#15171A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></svg>
+      </div>
+      <div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+        <div style="font-weight: 600; font-size: 15px;">Drop call recordings here, or choose files</div>
+        <div style="color: #6B7280;">WAV, MP3, M4A · up to 2 hours each · stereo recordings get exact agent/customer separation</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; flex: 0 1 300px; min-width: 240px;">
+        <label for="agent-select" style="font-size: 12px; color: #6B7280; font-weight: 500;">Assign to agent</label>
+        <select id="agent-select" style="min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid #D5D8DF; background: #FFFFFF; font: inherit; color: #15171A;">
+          <option>Detect from filename</option>
+          <option>Jerome Blake</option>
+          <option>Keisha Monroe</option>
+          <option>Luis Ortega</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- processing strip -->
+    <section aria-label="In progress" style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-weight: 600;">Processing</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6B7280;">3 in queue</span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;">
+        <div style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0;">
+          <div style="display: flex; justify-content: space-between; gap: 8px; align-items: baseline;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">20261021-141502_jblake.wav</span>
+            <span style="font-size: 12px; color: #6B7280; flex-shrink: 0;">14:32</span>
+          </div>
+          <div style="height: 6px; border-radius: 3px; background: #EEF0F4; overflow: hidden;"><div style="width: 70%; height: 100%; background: #2F4BC9;"></div></div>
+          <div style="font-size: 12px; color: #4B5563;">Transcribing · 70%</div>
+        </div>
+        <div style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0;">
+          <div style="display: flex; justify-content: space-between; gap: 8px; align-items: baseline;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">20261021-141840_kmonroe.wav</span>
+            <span style="font-size: 12px; color: #6B7280; flex-shrink: 0;">09:08</span>
+          </div>
+          <div style="height: 6px; border-radius: 3px; background: #EEF0F4; overflow: hidden;"><div style="width: 100%; height: 100%; background: #2F4BC9;"></div></div>
+          <div style="font-size: 12px; color: #4B5563;">Scoring with AI…</div>
+        </div>
+        <div style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0;">
+          <div style="display: flex; justify-content: space-between; gap: 8px; align-items: baseline;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">20261021-142215_lortega.mp3</span>
+            <span style="font-size: 12px; color: #6B7280; flex-shrink: 0;">21:47</span>
+          </div>
+          <div style="height: 6px; border-radius: 3px; background: #EEF0F4; overflow: hidden;"><div style="width: 8%; height: 100%; background: #2F4BC9;"></div></div>
+          <div style="font-size: 12px; color: #4B5563;">Queued</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- stats -->
+    <section aria-label="This week" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;">
+      <div style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 12px; color: #6B7280;">Calls scored this week</span>
+        <span style="font-size: 26px; font-weight: 600; letter-spacing: -0.02em;">148</span>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 12px; color: #6B7280;">Average score</span>
+        <span style="font-size: 26px; font-weight: 600; letter-spacing: -0.02em;">71<span style="font-size: 14px; color: #6B7280; font-weight: 400;"> / 100</span></span>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 12px; color: #6B7280;">Compliance flags</span>
+        <span style="font-size: 26px; font-weight: 600; letter-spacing: -0.02em; color: #B42318;">6</span>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 12px; color: #6B7280;">Weakest category</span>
+        <span style="font-size: 18px; font-weight: 600; letter-spacing: -0.01em; padding-top: 4px;">Objection handling</span>
+      </div>
+    </section>
+
+    <!-- table -->
+    <section aria-label="Scored calls" style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column;">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #E3E5EA;">
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button type="button" style="min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid #15171A; background: #15171A; color: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer;">All</button>
+          <button type="button" style="min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid #D5D8DF; background: #FFFFFF; color: #15171A; font: inherit; font-size: 13px; cursor: pointer;">Sales</button>
+          <button type="button" style="min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid #D5D8DF; background: #FFFFFF; color: #15171A; font: inherit; font-size: 13px; cursor: pointer;">Flagged</button>
+          <button type="button" style="min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid #D5D8DF; background: #FFFFFF; color: #15171A; font: inherit; font-size: 13px; cursor: pointer;">Below 60</button>
+        </div>
+        <label style="display: flex; align-items: center; gap: 8px; border: 1px solid #D5D8DF; border-radius: 8px; padding: 0 12px; min-height: 40px; flex: 0 1 280px; min-width: 200px;">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Search calls</span>
+          <input type="search" placeholder="Search agent, outcome, phrase…" style="border: 0; outline: 0; font: inherit; flex: 1; min-width: 0; color: #15171A; background: transparent;">
+        </label>
+      </div>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; min-width: 880px;">
+          <thead>
+            <tr style="text-align: left; font-size: 12px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.05em;">
+              <th style="padding: 12px 18px; font-weight: 500; border-bottom: 1px solid #E3E5EA;">Call</th>
+              <th style="padding: 12px 18px; font-weight: 500; border-bottom: 1px solid #E3E5EA;">Agent</th>
+              <th style="padding: 12px 18px; font-weight: 500; border-bottom: 1px solid #E3E5EA;">Outcome</th>
+              <th style="padding: 12px 18px; font-weight: 500; border-bottom: 1px solid #E3E5EA;">Length</th>
+              <th style="padding: 12px 18px; font-weight: 500; border-bottom: 1px solid #E3E5EA;">Score</th>
+              <th style="padding: 12px 18px; font-weight: 500; border-bottom: 1px solid #E3E5EA;">Flags</th>
+              <th style="padding: 12px 18px; font-weight: 500; border-bottom: 1px solid #E3E5EA;">Weakest</th>
+              <th style="padding: 12px 18px; font-weight: 500; border-bottom: 1px solid #E3E5EA;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid #EEF0F4;">
+              <td style="padding: 14px 18px;"><div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">20261021-133012</span><span style="font-size: 12px; color: #6B7280;">Today, 1:30 PM</span></div></td>
+              <td style="padding: 14px 18px;">Jerome Blake</td>
+              <td style="padding: 14px 18px;"><span style="display: inline-block; padding: 3px 10px; border-radius: 999px; background: #E3F3EC; color: #166A48; font-size: 12px; font-weight: 500;">Sale</span></td>
+              <td style="padding: 14px 18px; font-family: 'IBM Plex Mono', monospace; font-size: 13px;">18:41</td>
+              <td style="padding: 14px 18px;"><div style="display: flex; align-items: center; gap: 10px;"><span style="font-weight: 600; width: 28px;">84</span><div style="width: 90px; height: 6px; border-radius: 3px; background: #EEF0F4; overflow: hidden;"><div style="width: 84%; height: 100%; background: #1B7F5A;"></div></div></div></td>
+              <td style="padding: 14px 18px; color: #6B7280;">—</td>
+              <td style="padding: 14px 18px;">Close</td>
+              <td style="padding: 14px 18px; text-align: right;"><a href="Call.dc.html" style="font-weight: 500;">Open</a></td>
+            </tr>
+            <tr style="border-bottom: 1px solid #EEF0F4;">
+              <td style="padding: 14px 18px;"><div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">20261021-124455</span><span style="font-size: 12px; color: #6B7280;">Today, 12:44 PM</span></div></td>
+              <td style="padding: 14px 18px;">Keisha Monroe</td>
+              <td style="padding: 14px 18px;"><span style="display: inline-block; padding: 3px 10px; border-radius: 999px; background: #EEF0F4; color: #374151; font-size: 12px; font-weight: 500;">Callback</span></td>
+              <td style="padding: 14px 18px; font-family: 'IBM Plex Mono', monospace; font-size: 13px;">11:07</td>
+              <td style="padding: 14px 18px;"><div style="display: flex; align-items: center; gap: 10px;"><span style="font-weight: 600; width: 28px;">67</span><div style="width: 90px; height: 6px; border-radius: 3px; background: #EEF0F4; overflow: hidden;"><div style="width: 67%; height: 100%; background: #B45309;"></div></div></div></td>
+              <td style="padding: 14px 18px; color: #6B7280;">—</td>
+              <td style="padding: 14px 18px;">Objection handling</td>
+              <td style="padding: 14px 18px; text-align: right;"><a href="Call.dc.html" style="font-weight: 500;">Open</a></td>
+            </tr>
+            <tr style="border-bottom: 1px solid #EEF0F4;">
+              <td style="padding: 14px 18px;"><div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">20261021-115920</span><span style="font-size: 12px; color: #6B7280;">Today, 11:59 AM</span></div></td>
+              <td style="padding: 14px 18px;">Luis Ortega</td>
+              <td style="padding: 14px 18px;"><span style="display: inline-block; padding: 3px 10px; border-radius: 999px; background: #EEF0F4; color: #374151; font-size: 12px; font-weight: 500;">No sale</span></td>
+              <td style="padding: 14px 18px; font-family: 'IBM Plex Mono', monospace; font-size: 13px;">06:52</td>
+              <td style="padding: 14px 18px;"><div style="display: flex; align-items: center; gap: 10px;"><span style="font-weight: 600; width: 28px;">41</span><div style="width: 90px; height: 6px; border-radius: 3px; background: #EEF0F4; overflow: hidden;"><div style="width: 41%; height: 100%; background: #B42318;"></div></div></div></td>
+              <td style="padding: 14px 18px;"><span style="display: inline-flex; align-items: center; gap: 6px; color: #B42318; font-weight: 500; font-size: 13px;"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L2.5 18a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>2 flags</span></td>
+              <td style="padding: 14px 18px;">Compliance</td>
+              <td style="padding: 14px 18px; text-align: right;"><a href="Call.dc.html" style="font-weight: 500;">Open</a></td>
+            </tr>
+            <tr style="border-bottom: 1px solid #EEF0F4;">
+              <td style="padding: 14px 18px;"><div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">20261021-103311</span><span style="font-size: 12px; color: #6B7280;">Today, 10:33 AM</span></div></td>
+              <td style="padding: 14px 18px;">Jerome Blake</td>
+              <td style="padding: 14px 18px;"><span style="display: inline-block; padding: 3px 10px; border-radius: 999px; background: #E3F3EC; color: #166A48; font-size: 12px; font-weight: 500;">Sale</span></td>
+              <td style="padding: 14px 18px; font-family: 'IBM Plex Mono', monospace; font-size: 13px;">23:15</td>
+              <td style="padding: 14px 18px;"><div style="display: flex; align-items: center; gap: 10px;"><span style="font-weight: 600; width: 28px;">79</span><div style="width: 90px; height: 6px; border-radius: 3px; background: #EEF0F4; overflow: hidden;"><div style="width: 79%; height: 100%; background: #1B7F5A;"></div></div></div></td>
+              <td style="padding: 14px 18px; color: #6B7280;">—</td>
+              <td style="padding: 14px 18px;">Discovery</td>
+              <td style="padding: 14px 18px; text-align: right;"><a href="Call.dc.html" style="font-weight: 500;">Open</a></td>
+            </tr>
+            <tr>
+              <td style="padding: 14px 18px;"><div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px;">20261020-164808</span><span style="font-size: 12px; color: #6B7280;">Yesterday, 4:48 PM</span></div></td>
+              <td style="padding: 14px 18px;">Keisha Monroe</td>
+              <td style="padding: 14px 18px;"><span style="display: inline-block; padding: 3px 10px; border-radius: 999px; background: #EEF0F4; color: #374151; font-size: 12px; font-weight: 500;">Not interested</span></td>
+              <td style="padding: 14px 18px; font-family: 'IBM Plex Mono', monospace; font-size: 13px;">03:20</td>
+              <td style="padding: 14px 18px;"><div style="display: flex; align-items: center; gap: 10px;"><span style="font-weight: 600; width: 28px;">58</span><div style="width: 90px; height: 6px; border-radius: 3px; background: #EEF0F4; overflow: hidden;"><div style="width: 58%; height: 100%; background: #B45309;"></div></div></div></td>
+              <td style="padding: 14px 18px; color: #6B7280;">—</td>
+              <td style="padding: 14px 18px;">Opening</td>
+              <td style="padding: 14px 18px; text-align: right;"><a href="Call.dc.html" style="font-weight: 500;">Open</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; border-top: 1px solid #E3E5EA; font-size: 13px; color: #6B7280;">
+        <span>Showing 5 of 148</span>
+        <div style="display: flex; gap: 6px;">
+          <button type="button" style="min-height: 36px; min-width: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid #D5D8DF; background: #FFFFFF; font: inherit; font-size: 13px; color: #15171A; cursor: pointer;">Prev</button>
+          <button type="button" style="min-height: 36px; min-width: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid #D5D8DF; background: #FFFFFF; font: inherit; font-size: 13px; color: #15171A; cursor: pointer;">Next</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
