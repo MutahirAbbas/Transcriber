@@ -13,3 +13,7 @@ results/*
 *.db-wal
 *.db-shm
 *.db-journal
+web/node_modules/
+web/dist/
+*.tsbuildinfo
+.playwright-mcp/
