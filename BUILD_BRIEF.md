@@ -33,7 +33,7 @@ call-bench/
   api/            FastAPI app: main.py, db.py, models.py, worker.py, routes/
   web/            Vite app
   transcribers/ eval/ scoring/ pipeline.py   (existing — do not rewrite; small additive changes OK)
-  data/calls/     uploaded audio lands here, named <call_id>.<ext>
+  data/uploads/   uploaded audio lands here, named <call_id>.<ext> (data/calls/ is the benchmark's reference set)
 ```
 
 Dev: `uvicorn api.main:app --reload --port 8000` and `cd web && npm run dev` (Vite proxies `/api` → 8000).
@@ -68,7 +68,7 @@ All under `/api`. JSON unless noted. Errors: `{"detail": "..."}` with proper sta
 
 | Method & path | Does |
 |---|---|
-| `POST /calls` | multipart: `files[]` (1–20 audio files), optional `agent` (agent id, or empty = detect from filename). Saves each to `data/calls/<id>.<ext>`, runs ffprobe for duration + channels, inserts row as `queued`, enqueues. Returns the created rows. Reject files > 2 h or non-audio with 400. |
+| `POST /calls` | multipart: `files[]` (1–20 audio files), optional `agent` (agent id, or empty = detect from filename). Saves each to `data/uploads/<id>.<ext>`, runs ffprobe for duration + channels, inserts row as `queued`, enqueues. Returns the created rows. Reject files > 2 h or non-audio with 400. |
 | `GET /calls` | query: `filter` = `all` · `sales` · `flagged` · `below60`, `q` (search), `page`, `page_size` (default 25). Returns `{items, total}`. Each item = row summary + derived fields. Sorted `uploaded_at` desc. |
 | `GET /calls/in-progress` | rows with status not in (`done`,`error`), for the processing strip. |
 | `GET /calls/{id}` | full record incl. parsed transcript + score, plus `speaker_map` (see below). |

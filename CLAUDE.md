@@ -12,7 +12,7 @@ Call transcription + AI scoring tool, with a benchmark harness for transcription
 - Python 3.11, type hints, `from __future__ import annotations`. No new global state; pass things in.
 - Front end: TypeScript strict, Tailwind with named colours from the brief's token table — no raw hexes in components.
 - Keep `eval/` and `scoring/` runnable from the CLI without the web app.
-- Don't commit anything under `data/calls`, `data/references`, `results/`, `.env`, or the SQLite file.
+- Don't commit anything under `data/calls`, `data/uploads`, `data/references`, `results/`, `.env`, or the SQLite file.
 - Secrets come from env (`.env.example` lists them). Never log transcript text at INFO level — it's customer audio.
 - Small, reviewable commits: backend skeleton → worker → Calls page → Call detail → polish.
 
