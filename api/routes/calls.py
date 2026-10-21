@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import io
-import mimetypes
 import shutil
 from datetime import timedelta
 from pathlib import Path
@@ -15,7 +14,7 @@ from sqlmodel import Session
 from api import derive, repo
 from api.db import get_session
 from api.media import (
-    MAX_DURATION_S, UnreadableAudio, agent_slug_from_filename, looks_like_audio, make_call_id, probe,
+    AUDIO_TYPES, MAX_DURATION_S, UnreadableAudio, agent_slug_from_filename, audio_ext, make_call_id, probe,
 )
 from api.models import TERMINAL, Agent, Call, CallStatus, utcnow
 
@@ -23,7 +22,6 @@ router = APIRouter()
 
 MAX_FILES = 20
 ERRORS_VISIBLE_FOR = timedelta(hours=1)
-_AUDIO_TYPES = {".m4a": "audio/mp4", ".wav": "audio/wav", ".mp3": "audio/mpeg", ".opus": "audio/ogg"}
 
 SessionDep = Annotated[Session, Depends(get_session)]
 FilterParam = Annotated[str, Query(alias="filter", pattern="^(all|sales|flagged|below60)$")]
@@ -57,8 +55,8 @@ def upload_calls(
     if not 1 <= len(files) <= MAX_FILES:
         raise HTTPException(400, f"Upload between 1 and {MAX_FILES} files at a time")
     for f in files:
-        if not looks_like_audio(f.filename or "", f.content_type):
-            raise HTTPException(400, f"{f.filename} is not an audio file")
+        if audio_ext(f.filename or "") is None:
+            raise HTTPException(400, f"{f.filename} is not an audio file ({', '.join(AUDIO_TYPES)})")
 
     chosen: Agent | None = None
     if agent:
@@ -71,10 +69,9 @@ def upload_calls(
     probed: dict[str, tuple[float, bool] | str] = {}
     try:
         for f in files:
-            name = f.filename or "recording"
+            name = f.filename or ""
             call_id = make_call_id(name)
-            ext = Path(name).suffix.lower() or mimetypes.guess_extension(f.content_type or "") or ".audio"
-            dest = settings.calls_dir / f"{call_id}{ext}"
+            dest = settings.calls_dir / f"{call_id}{audio_ext(name)}"
             with dest.open("wb") as out:
                 shutil.copyfileobj(f.file, out)
             saved.append((f, call_id, dest))
@@ -82,6 +79,7 @@ def upload_calls(
                 probed[call_id] = probe(dest)
             except UnreadableAudio as e:
                 probed[call_id] = str(e)
+                dest.unlink(missing_ok=True)   # keep the error row, not the file
         too_long = [f.filename for f, cid, _ in saved
                     if isinstance(probed[cid], tuple) and probed[cid][0] > MAX_DURATION_S]
         if too_long:
@@ -93,7 +91,7 @@ def upload_calls(
 
     created: list[Call] = []
     for f, call_id, _ in saved:
-        name = f.filename or "recording"
+        name = f.filename or ""
         row = Call(id=call_id, filename=name)
         if chosen is not None:
             row.agent_id = chosen.id
@@ -189,9 +187,9 @@ def get_audio(call_id: str, request: Request, session: SessionDep) -> FileRespon
     path = _audio_path(request.app.state.settings.calls_dir, call_id)
     if path is None:
         raise HTTPException(404, "Audio file not found")
-    media_type = _AUDIO_TYPES.get(path.suffix.lower()) or mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    media_type = AUDIO_TYPES.get(path.suffix.lower(), "application/octet-stream")
     # FileResponse answers Range requests, so <audio> can seek
-    return FileResponse(path, media_type=media_type)
+    return FileResponse(path, media_type=media_type, headers={"X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/calls/{call_id}/transcript.txt")

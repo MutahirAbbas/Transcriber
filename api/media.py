@@ -9,14 +9,22 @@ from pathlib import Path
 
 from transcribers import audio_channels, audio_duration
 
-AUDIO_EXTS = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".oga", ".opus", ".aac", ".webm"}
+# Extension → the only media types /audio will ever serve. Uploads are accepted by
+# extension alone (never the client's Content-Type), so nothing lands on disk that
+# a browser would render as a page.
+AUDIO_TYPES = {
+    ".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac",
+    ".flac": "audio/flac", ".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg",
+    ".webm": "audio/webm",
+}
 MAX_DURATION_S = 2 * 60 * 60
 
 _ID_ALPHABET = string.ascii_lowercase + string.digits
 
 
-def looks_like_audio(filename: str, content_type: str | None) -> bool:
-    return Path(filename).suffix.lower() in AUDIO_EXTS or (content_type or "").startswith("audio/")
+def audio_ext(filename: str) -> str | None:
+    ext = Path(filename).suffix.lower()
+    return ext if ext in AUDIO_TYPES else None
 
 
 def make_call_id(filename: str) -> str:

@@ -29,7 +29,7 @@ def settings(tmp_path: Path) -> Settings:
 
 @pytest.fixture
 def app(settings: Settings) -> FastAPI:
-    return create_app(settings)
+    return create_app(settings, start_worker=False)
 
 
 @pytest.fixture

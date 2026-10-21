@@ -61,7 +61,13 @@ def test_upload_rejects_non_audio_and_saves_nothing(client: TestClient, make_wav
     assert client.get("/api/calls").json()["total"] == 0
 
 
-def test_upload_unreadable_audio_becomes_error_row(client: TestClient, app: FastAPI, make_wav) -> None:
+def test_upload_judges_by_extension_not_content_type(client: TestClient, settings) -> None:
+    r = client.post("/api/calls", files=[("files", ("x.html", b"<script>alert(1)</script>", "audio/wav"))])
+    assert r.status_code == 400
+    assert not settings.calls_dir.exists() or not any(settings.calls_dir.iterdir())
+
+
+def test_upload_unreadable_audio_becomes_error_row(client: TestClient, app: FastAPI, make_wav, settings) -> None:
     r = client.post("/api/calls", files=[
         ("files", ("broken.wav", b"this is a text file", "audio/wav")),
         ("files", ("good_jblake.wav", make_wav().read_bytes(), "audio/wav")),
@@ -69,6 +75,7 @@ def test_upload_unreadable_audio_becomes_error_row(client: TestClient, app: Fast
     assert r.status_code == 201
     broken, good = r.json()
     assert broken["status"] == "error" and broken["error"]
+    assert not list(settings.calls_dir.glob(f"{broken['id']}.*"))   # error row kept, file not
     assert good["status"] == "queued"
     assert _drain(app) == [(good["id"], "full")]
     strip = client.get("/api/calls/in-progress").json()
@@ -187,6 +194,7 @@ def test_audio_supports_range(client: TestClient, make_wav, settings, add_call) 
     full = client.get("/api/calls/c1/audio")
     assert full.status_code == 200 and full.headers["content-type"] == "audio/wav"
     assert full.headers.get("accept-ranges") == "bytes"
+    assert full.headers["x-content-type-options"] == "nosniff"
     part = client.get("/api/calls/c1/audio", headers={"Range": "bytes=0-99"})
     assert part.status_code == 206 and len(part.content) == 100
 

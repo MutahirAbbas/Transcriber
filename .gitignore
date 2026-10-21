@@ -10,3 +10,6 @@ results/*
 *.sqlite
 *.sqlite3
 .pytest_cache/
+*.db-wal
+*.db-shm
+*.db-journal
