@@ -48,8 +48,16 @@ def test_transcript_lines_map_speakers_and_label_unlabelled_turns() -> None:
 @pytest.mark.parametrize("name, slug", [
     ("20261021-141502_jblake.wav", "jblake"),
     ("20261021-141502_J.Blake.mp3", "j-blake"),
+    ("20261021-141502_jblake-in.wav", "jblake"),
+    ("20261021-141502_jblake-OUT.wav", "jblake"),
+    ("20261021-141502_jblake-all.wav", "jblake"),
+    # Vici puts the customer's phone number there: no agent
+    ("20261017-014852_2022625450-all.mp3", None),
+    ("20261017-014852_2022625450.wav", None),
+    ("20261017-014852_2022625450-out.wav", None),
     ("recording.wav", None),
     ("20261021_.wav", None),
+    ("20261021_-all.wav", None),
 ])
 def test_agent_slug_from_filename(name: str, slug: str | None) -> None:
     assert agent_slug_from_filename(name) == slug

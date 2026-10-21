@@ -41,7 +41,7 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         worker = None
         if start_worker:
-            worker = Worker(app.state.engine, app.state.jobs, settings.calls_dir, settings.provider,
+            worker = Worker(app.state.engine, app.state.jobs, settings.uploads_dir, settings.provider,
                             process_call, make_scorer)
             worker.start()
         app.state.worker = worker

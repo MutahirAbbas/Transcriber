@@ -3,6 +3,7 @@
 __pycache__/
 data/calls/*
 data/references/*
+data/uploads/*
 results/*
 !**/.gitkeep
 .DS_Store

@@ -21,7 +21,7 @@ from api.models import Call, CallStatus, utcnow
 def settings(tmp_path: Path) -> Settings:
     return Settings(
         db_path=tmp_path / "test.db",
-        calls_dir=tmp_path / "calls",
+        uploads_dir=tmp_path / "uploads",
         provider="whisper_local",
         scorecard_path=ROOT / "scoring" / "scorecard.yaml",
     )

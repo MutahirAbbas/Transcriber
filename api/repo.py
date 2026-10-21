@@ -31,6 +31,15 @@ def agent_for_name(session: Session, name: str) -> Agent | None:
     return find_or_create_agent(session, slug, name.strip()) if slug else None
 
 
+def delete_agent_if_unused(session: Session, agent_id: int | None) -> None:
+    if agent_id is None:
+        return
+    if session.exec(select(Call.id).where(Call.agent_id == agent_id)).first() is None:
+        agent = session.get(Agent, agent_id)
+        if agent:
+            session.delete(agent)
+
+
 # ---- list / search / filter ------------------------------------------------------
 # Same definitions as api.derive, expressed in SQL so paging and totals are right.
 

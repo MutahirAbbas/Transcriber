@@ -12,6 +12,7 @@ eval/           metrics (WER, keyword recall) + benchmark runner
 scoring/        Claude scorer + scorecard.yaml
 pipeline.py     one call in → transcript + score out  (what TQC / the public tool calls)
 data/calls/     put audio here                        (gitignored)
+data/uploads/   audio uploaded through the web app    (gitignored)
 data/references/ <call_id>.txt human-corrected transcripts
 data/keywords.txt domain terms (boosting + keyword-recall metric)
 results/        transcripts + benchmark CSVs

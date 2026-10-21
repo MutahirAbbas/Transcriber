@@ -69,7 +69,7 @@ def make_worker(app: FastAPI, settings: Settings, jobs: queue.Queue) -> Iterator
     started: list[Worker] = []
 
     def _make(pipeline: Callable[..., dict] | None = None, scorer: Any = None, start: bool = True, **kw: Any) -> Worker:
-        w = Worker(app.state.engine, jobs, settings.calls_dir, "whisper_local",
+        w = Worker(app.state.engine, jobs, settings.uploads_dir, "whisper_local",
                    pipeline or FakePipeline(app.state.engine), lambda: scorer or FakeScorer(), **kw)
         if start:
             w.start()
@@ -84,8 +84,8 @@ def make_worker(app: FastAPI, settings: Settings, jobs: queue.Queue) -> Iterator
 @pytest.fixture
 def with_audio(settings: Settings, add_call) -> Callable[..., Call]:
     def _add(call_id: str, **kw: Any) -> Call:
-        settings.calls_dir.mkdir(parents=True, exist_ok=True)
-        (settings.calls_dir / f"{call_id}.wav").write_bytes(b"RIFF")
+        settings.uploads_dir.mkdir(parents=True, exist_ok=True)
+        (settings.uploads_dir / f"{call_id}.wav").write_bytes(b"RIFF")
         return add_call(call_id, status=kw.pop("status", CallStatus.queued), **kw)
     return _add
 
@@ -159,7 +159,7 @@ def test_scorer_that_cannot_start_fails_each_job(app: FastAPI, jobs, settings, w
     def broken() -> FakeScorer:
         raise RuntimeError("ANTHROPIC_API_KEY not set")
     with_audio("c1")
-    w = Worker(app.state.engine, jobs, settings.calls_dir, "whisper_local", FakePipeline(app.state.engine), broken)
+    w = Worker(app.state.engine, jobs, settings.uploads_dir, "whisper_local", FakePipeline(app.state.engine), broken)
     w.start()
     jobs.put(("c1", "full"))
     jobs.join()

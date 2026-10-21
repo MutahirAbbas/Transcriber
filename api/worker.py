@@ -20,6 +20,7 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Session, col, select
 
 from api import derive, repo
+from api.media import find_audio
 from api.models import TERMINAL, Call, CallStatus, utcnow
 from api.redaction import redact_result, redact_score
 from transcribers.base import Segment, TranscriptResult
@@ -44,7 +45,7 @@ class Worker:
         self,
         engine: Engine,
         jobs: queue.Queue[Job | None],
-        calls_dir: Path,
+        uploads_dir: Path,
         provider: str,
         process_call: Callable[..., dict],
         make_scorer: Callable[[], Scorer],
@@ -52,7 +53,7 @@ class Worker:
     ) -> None:
         self.engine = engine
         self.jobs = jobs
-        self.calls_dir = calls_dir
+        self.uploads_dir = uploads_dir
         self.provider = provider
         self.process_call = process_call
         self.tick_s = tick_s
@@ -129,7 +130,7 @@ class Worker:
             if call is None:       # deleted while queued
                 return
             duration_s, stereo = call.duration_s, call.stereo
-        audio = next(iter(sorted(self.calls_dir.glob(f"{call_id}.*"))), None)
+        audio = find_audio(self.uploads_dir, call_id)
         if audio is None:
             raise FileNotFoundError("Audio file is missing")
         scorer = self.scorer

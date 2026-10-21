@@ -38,12 +38,28 @@ def slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
+_VICI_LEG = re.compile(r"-(?:all|in|out)$", re.I)
+
+
 def agent_slug_from_filename(filename: str) -> str | None:
-    """Last `_`-separated token before the extension: 20261021-141502_jblake.wav → jblake."""
+    """Last `_`-separated token before the extension: 20261021-141502_jblake.wav → jblake.
+
+    Vici appends -all/-in/-out (which legs are recorded). If what's left is numeric
+    it's the customer's phone number, not an agent → None, so the scorer's
+    agent_name fallback applies.
+    """
     stem = Path(filename).stem
     if "_" not in stem:
         return None
-    return slugify(stem.rsplit("_", 1)[1]) or None
+    token = _VICI_LEG.sub("", stem.rsplit("_", 1)[1])
+    if not re.search(r"[A-Za-z]", token):
+        return None
+    return slugify(token) or None
+
+
+def find_audio(directory: Path, call_id: str) -> Path | None:
+    """A call's stored upload: <directory>/<call_id>.<ext>."""
+    return next(iter(sorted(directory.glob(f"{call_id}.*"))), None)
 
 
 class UnreadableAudio(Exception):

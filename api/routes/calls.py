@@ -14,7 +14,8 @@ from sqlmodel import Session
 from api import derive, repo
 from api.db import get_session
 from api.media import (
-    AUDIO_TYPES, MAX_DURATION_S, UnreadableAudio, agent_slug_from_filename, audio_ext, make_call_id, probe,
+    AUDIO_TYPES, MAX_DURATION_S, UnreadableAudio, agent_slug_from_filename, audio_ext, find_audio, make_call_id,
+    probe,
 )
 from api.models import TERMINAL, Agent, Call, CallStatus, utcnow
 
@@ -36,10 +37,6 @@ def _get_call(session: Session, call_id: str) -> Call:
     if call is None:
         raise HTTPException(404, "Call not found")
     return call
-
-
-def _audio_path(calls_dir: Path, call_id: str) -> Path | None:
-    return next(iter(sorted(calls_dir.glob(f"{call_id}.*"))), None)
 
 
 # ---- upload ------------------------------------------------------------------------
@@ -64,14 +61,14 @@ def upload_calls(
         if chosen is None:
             raise HTTPException(400, "Unknown agent")
 
-    settings.calls_dir.mkdir(parents=True, exist_ok=True)
+    settings.uploads_dir.mkdir(parents=True, exist_ok=True)
     saved: list[tuple[UploadFile, str, Path]] = []
     probed: dict[str, tuple[float, bool] | str] = {}
     try:
         for f in files:
             name = f.filename or ""
             call_id = make_call_id(name)
-            dest = settings.calls_dir / f"{call_id}{audio_ext(name)}"
+            dest = settings.uploads_dir / f"{call_id}{audio_ext(name)}"
             with dest.open("wb") as out:
                 shutil.copyfileobj(f.file, out)
             saved.append((f, call_id, dest))
@@ -184,7 +181,7 @@ def get_call(call_id: str, request: Request, session: SessionDep) -> dict[str, A
 @router.get("/calls/{call_id}/audio")
 def get_audio(call_id: str, request: Request, session: SessionDep) -> FileResponse:
     _get_call(session, call_id)
-    path = _audio_path(request.app.state.settings.calls_dir, call_id)
+    path = find_audio(request.app.state.settings.uploads_dir, call_id)
     if path is None:
         raise HTTPException(404, "Audio file not found")
     media_type = AUDIO_TYPES.get(path.suffix.lower(), "application/octet-stream")
@@ -220,7 +217,7 @@ def rescore(call_id: str, request: Request, session: SessionDep) -> dict[str, An
 @router.delete("/calls/{call_id}", status_code=204)
 def delete_call(call_id: str, request: Request, session: SessionDep) -> Response:
     call = _get_call(session, call_id)
-    for path in request.app.state.settings.calls_dir.glob(f"{call.id}.*"):
+    for path in request.app.state.settings.uploads_dir.glob(f"{call.id}.*"):
         path.unlink(missing_ok=True)
     session.delete(call)
     session.commit()

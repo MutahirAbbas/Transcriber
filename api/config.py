@@ -22,7 +22,7 @@ class Scorecard:
 @dataclass(frozen=True)
 class Settings:
     db_path: Path
-    calls_dir: Path
+    uploads_dir: Path              # web uploads; data/calls stays the benchmark's reference set
     provider: str                  # active transcriber, e.g. "whisper_local"
     scorecard_path: Path
 
@@ -30,7 +30,7 @@ class Settings:
 def load_settings() -> Settings:
     return Settings(
         db_path=Path(os.environ.get("CALLBENCH_DB", ROOT / "data" / "call-bench.db")),
-        calls_dir=Path(os.environ.get("CALLBENCH_CALLS_DIR", ROOT / "data" / "calls")),
+        uploads_dir=Path(os.environ.get("CALLBENCH_UPLOADS_DIR", ROOT / "data" / "uploads")),
         provider=os.environ.get("TRANSCRIBER", "whisper_local"),
         scorecard_path=ROOT / "scoring" / "scorecard.yaml",
     )

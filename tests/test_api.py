@@ -37,7 +37,7 @@ def test_upload_probes_saves_and_enqueues(client: TestClient, app: FastAPI, make
     assert b["stereo"] is True
     assert a["agent"] == "Jblake" and b["agent"] == "Kmonroe"
     assert a["id"].startswith("20261021-141502_jblake-")
-    assert (settings.calls_dir / f"{a['id']}.wav").exists()
+    assert (settings.uploads_dir / f"{a['id']}.wav").exists()
     assert _drain(app) == [(a["id"], "full"), (b["id"], "full")]
 
 
@@ -50,6 +50,12 @@ def test_upload_assigns_chosen_agent(client: TestClient, app: FastAPI, make_wav)
     assert r.json()[0]["agent"] == "Luis Ortega"
 
 
+def test_upload_with_phone_number_filename_leaves_agent_for_scorer(client: TestClient, app: FastAPI, make_wav) -> None:
+    r = _upload(client, make_wav("20261017-014852_2025550147-all.wav"))
+    assert r.json()[0]["agent"] is None and r.json()[0]["agent_id"] is None
+    assert client.get("/api/agents").json() == []
+
+
 def test_upload_rejects_non_audio_and_saves_nothing(client: TestClient, make_wav, settings) -> None:
     r = client.post("/api/calls", files=[
         ("files", ("ok_jblake.wav", make_wav().read_bytes(), "audio/wav")),
@@ -57,14 +63,14 @@ def test_upload_rejects_non_audio_and_saves_nothing(client: TestClient, make_wav
     ])
     assert r.status_code == 400
     assert "not an audio file" in r.json()["detail"]
-    assert not settings.calls_dir.exists() or not any(settings.calls_dir.iterdir())
+    assert not settings.uploads_dir.exists() or not any(settings.uploads_dir.iterdir())
     assert client.get("/api/calls").json()["total"] == 0
 
 
 def test_upload_judges_by_extension_not_content_type(client: TestClient, settings) -> None:
     r = client.post("/api/calls", files=[("files", ("x.html", b"<script>alert(1)</script>", "audio/wav"))])
     assert r.status_code == 400
-    assert not settings.calls_dir.exists() or not any(settings.calls_dir.iterdir())
+    assert not settings.uploads_dir.exists() or not any(settings.uploads_dir.iterdir())
 
 
 def test_upload_unreadable_audio_becomes_error_row(client: TestClient, app: FastAPI, make_wav, settings) -> None:
@@ -75,7 +81,7 @@ def test_upload_unreadable_audio_becomes_error_row(client: TestClient, app: Fast
     assert r.status_code == 201
     broken, good = r.json()
     assert broken["status"] == "error" and broken["error"]
-    assert not list(settings.calls_dir.glob(f"{broken['id']}.*"))   # error row kept, file not
+    assert not list(settings.uploads_dir.glob(f"{broken['id']}.*"))   # error row kept, file not
     assert good["status"] == "queued"
     assert _drain(app) == [(good["id"], "full")]
     strip = client.get("/api/calls/in-progress").json()
@@ -189,8 +195,8 @@ def test_detail(client: TestClient, add_call) -> None:
 
 def test_audio_supports_range(client: TestClient, make_wav, settings, add_call) -> None:
     add_call("c1")
-    settings.calls_dir.mkdir(parents=True, exist_ok=True)
-    (settings.calls_dir / "c1.wav").write_bytes(make_wav(seconds=1).read_bytes())
+    settings.uploads_dir.mkdir(parents=True, exist_ok=True)
+    (settings.uploads_dir / "c1.wav").write_bytes(make_wav(seconds=1).read_bytes())
     full = client.get("/api/calls/c1/audio")
     assert full.status_code == 200 and full.headers["content-type"] == "audio/wav"
     assert full.headers.get("accept-ranges") == "bytes"
@@ -221,8 +227,8 @@ def test_rescore(client: TestClient, app: FastAPI, add_call) -> None:
 
 def test_delete_removes_row_and_audio(client: TestClient, settings, add_call) -> None:
     add_call("c1")
-    settings.calls_dir.mkdir(parents=True, exist_ok=True)
-    audio = settings.calls_dir / "c1.mp3"
+    settings.uploads_dir.mkdir(parents=True, exist_ok=True)
+    audio = settings.uploads_dir / "c1.mp3"
     audio.write_bytes(b"x")
     assert client.delete("/api/calls/c1").status_code == 204
     assert not audio.exists()
