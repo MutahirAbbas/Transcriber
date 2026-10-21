@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Callable, Optional
 
-from transcribers import audio_channels, get_transcriber
+from transcribers import TranscriptResult, audio_channels, get_transcriber
 from scoring.rate_call import CallScorer
 
 ROOT = Path(__file__).resolve().parent
@@ -40,6 +40,7 @@ def process_call(
     on_status: StatusCallback = None,
     scorer: CallScorer | None = None,    # pass one in to reuse across calls
     out_dir: Path | None = ROOT / "results" / "processed",
+    redact: Callable[[TranscriptResult], TranscriptResult] | None = None,  # applied before scoring + saving
 ) -> dict:
     call_id = call_id or audio.stem
     if stereo is None:
@@ -57,6 +58,8 @@ def process_call(
     if on_status:
         on_status("transcribing")
     res = tx.transcribe(audio, call_id, keywords=keywords)
+    if redact:
+        res = redact(res)
 
     if on_status:
         on_status("scoring")

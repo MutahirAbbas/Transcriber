@@ -9,3 +9,4 @@ results/*
 *.db
 *.sqlite
 *.sqlite3
+.pytest_cache/
