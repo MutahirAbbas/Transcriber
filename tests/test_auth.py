@@ -67,6 +67,35 @@ def test_logout_ends_the_session(signed_in: TestClient) -> None:
     assert signed_in.get("/api/calls").status_code == 401
 
 
+def test_logout_revokes_the_cookie_server_side(signed_in: TestClient) -> None:
+    copied = signed_in.cookies[auth.COOKIE]
+    signed_in.post("/api/auth/logout")
+    signed_in.cookies.set(auth.COOKIE, copied)   # someone kept a copy
+    assert signed_in.get("/api/calls").status_code == 401
+
+
+def test_each_browser_has_its_own_session(app: FastAPI) -> None:
+    with TestClient(app, base_url="https://testserver") as laptop, \
+         TestClient(app, base_url="https://testserver") as phone:
+        sign_in(laptop, app)
+        assert _login(phone).status_code == 200
+        laptop.post("/api/auth/logout")
+        assert laptop.get("/api/calls").status_code == 401
+        assert phone.get("/api/calls").status_code == 200
+
+
+def test_expired_session_rows_are_rejected(signed_in: TestClient, app: FastAPI) -> None:
+    from datetime import timedelta
+    from sqlmodel import select
+    from api.models import UserSession, utcnow
+    with Session(app.state.engine) as s:
+        for row in s.exec(select(UserSession)).all():
+            row.expires_at = utcnow() - timedelta(seconds=1)
+            s.add(row)
+        s.commit()
+    assert signed_in.get("/api/calls").status_code == 401
+
+
 def test_password_reset_signs_out_existing_sessions(signed_in: TestClient, app: FastAPI) -> None:
     with Session(app.state.engine) as s:
         users.reset_password(s, USER_EMAIL, "a brand new password")
@@ -103,19 +132,38 @@ def test_ten_failures_lock_the_ip_out(client: TestClient, app: FastAPI) -> None:
     assert r.status_code == 429 and "15 min" in r.json()["detail"]
 
 
-def test_lockout_expires_and_success_resets_the_count() -> None:
+def test_lockout_expires_and_success_forgets_that_accounts_failures() -> None:
     now = [0.0]
     lock = auth.Lockout(clock=lambda: now[0])
     for _ in range(9):
-        lock.failure("1.2.3.4")
-    lock.clear("1.2.3.4")                     # a successful sign-in
+        lock.failure("1.2.3.4", "a@b.co")
+    lock.success("1.2.3.4", "a@b.co")          # they remembered it
     for _ in range(9):
-        lock.failure("1.2.3.4")
+        lock.failure("1.2.3.4", "a@b.co")
     assert lock.seconds_left("1.2.3.4") == 0
-    lock.failure("1.2.3.4")
+    lock.failure("1.2.3.4", "a@b.co")
     assert lock.seconds_left("1.2.3.4") == auth.LOCKOUT_S
-    assert lock.seconds_left("5.6.7.8") == 0  # other IPs unaffected
+    assert lock.seconds_left("5.6.7.8") == 0   # other IPs unaffected
     now[0] += auth.LOCKOUT_S + 1
+    assert lock.seconds_left("1.2.3.4") == 0
+
+
+def test_signing_into_one_account_doesnt_reset_guesses_at_another() -> None:
+    lock = auth.Lockout(clock=lambda: 0.0)
+    for _ in range(9):
+        lock.failure("1.2.3.4", "victim@b.co")
+        lock.success("1.2.3.4", "attacker@b.co")
+    lock.failure("1.2.3.4", "victim@b.co")
+    assert lock.seconds_left("1.2.3.4") == auth.LOCKOUT_S
+
+
+def test_failures_age_out_of_the_window() -> None:
+    now = [0.0]
+    lock = auth.Lockout(clock=lambda: now[0])
+    for _ in range(9):
+        lock.failure("1.2.3.4", "a@b.co")
+    now[0] += auth.LOCKOUT_S + 1
+    lock.failure("1.2.3.4", "a@b.co")
     assert lock.seconds_left("1.2.3.4") == 0
 
 

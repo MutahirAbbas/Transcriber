@@ -65,6 +65,18 @@ class User(SQLModel, table=True):
     last_login: datetime | None = None
 
 
+class UserSession(SQLModel, table=True):
+    """A signed-in browser. The cookie holds a random token; only its hash is stored, so
+    logout, password reset and user removal revoke sessions server-side."""
+
+    __tablename__ = "sessions"
+
+    id: str = Field(primary_key=True)                        # sha256 of the cookie's token
+    user_id: int = Field(foreign_key="users.id", index=True)
+    created_at: datetime = Field(default_factory=utcnow)
+    expires_at: datetime
+
+
 class WorkerSeen(SQLModel, table=True):
     """Last contact from each remote transcription worker, for the sidebar status."""
 

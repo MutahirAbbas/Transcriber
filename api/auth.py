@@ -1,25 +1,27 @@
-"""Sign-in: argon2 password hashes, a signed session cookie, per-IP lockout.
+"""Sign-in: argon2 password hashes, server-side sessions behind a signed cookie, per-IP lockout.
 
-The cookie carries the user id and a fingerprint of their password hash, so
-resetting a password signs out every existing session, and removing a user
-does too (the id no longer resolves).
+The cookie holds a random token, signed with SESSION_SECRET; the `sessions` table holds
+its hash. Logout deletes that row, and a password reset or removing the user deletes
+all of theirs, so a copied cookie stops working at once.
 """
 from __future__ import annotations
 
 import hashlib
 import re
+import secrets
 import threading
 import time
 from collections.abc import Callable
-from typing import Any
+from datetime import timedelta
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from fastapi import HTTPException, Request, Response
 from itsdangerous import BadSignature, URLSafeTimedSerializer
-from sqlmodel import Session, select
+from sqlalchemy import delete
+from sqlmodel import Session, col, select
 
-from api.models import User
+from api.models import User, UserSession, utcnow
 
 COOKIE = "callbench_session"
 SESSION_MAX_AGE_S = 14 * 24 * 3600
@@ -58,16 +60,24 @@ def needs_rehash(password_hash: str) -> bool:
     return _hasher.check_needs_rehash(password_hash)
 
 
-def _fingerprint(password_hash: str) -> str:
-    return hashlib.sha256(password_hash.encode()).hexdigest()[:16]
+def _token_id(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def end_sessions(session: Session, user_id: int) -> None:
+    """Sign a user out everywhere (password reset, removal). Caller commits."""
+    session.exec(delete(UserSession).where(col(UserSession.user_id) == user_id))
 
 
 class Lockout:
-    """LOCKOUT_FAILURES failed sign-ins from one IP within LOCKOUT_S → that IP waits LOCKOUT_S."""
+    """LOCKOUT_FAILURES failed sign-ins from one IP within LOCKOUT_S → that IP waits LOCKOUT_S.
+
+    A successful sign-in only forgets the failures against that same account, so one
+    valid login can't be used to reset the count while guessing someone else's."""
 
     def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
         self.clock = clock
-        self._failures: dict[str, list[float]] = {}
+        self._failures: dict[str, list[tuple[float, str]]] = {}   # ip → [(when, email)]
         self._locked_until: dict[str, float] = {}
         self._lock = threading.Lock()
 
@@ -78,18 +88,22 @@ class Lockout:
                 self._locked_until.pop(ip, None)
             return max(0.0, left)
 
-    def failure(self, ip: str) -> None:
+    def failure(self, ip: str, email: str) -> None:
         now = self.clock()
         with self._lock:
-            recent = [t for t in self._failures.get(ip, []) if now - t < LOCKOUT_S] + [now]
+            recent = [f for f in self._failures.get(ip, []) if now - f[0] < LOCKOUT_S] + [(now, email)]
             if len(recent) >= LOCKOUT_FAILURES:
                 self._locked_until[ip] = now + LOCKOUT_S
                 recent = []
             self._failures[ip] = recent
 
-    def clear(self, ip: str) -> None:
+    def success(self, ip: str, email: str) -> None:
         with self._lock:
-            self._failures.pop(ip, None)
+            kept = [f for f in self._failures.get(ip, []) if f[1] != email]
+            if kept:
+                self._failures[ip] = kept
+            else:
+                self._failures.pop(ip, None)
 
 
 class Auth:
@@ -102,27 +116,38 @@ class Auth:
         self._serializer = URLSafeTimedSerializer(secret or "auth-disabled", salt="callbench-session")
         self.lockout = Lockout()
 
-    def set_session(self, response: Response, user: User) -> None:
+    def start_session(self, response: Response, session: Session, user: User) -> None:
+        """Record a new session and set its cookie. Caller commits."""
         assert user.id is not None
-        token = self._serializer.dumps({"u": user.id, "f": _fingerprint(user.password_hash)})
-        response.set_cookie(COOKIE, token, max_age=SESSION_MAX_AGE_S, path="/",
+        now = utcnow()
+        session.exec(delete(UserSession).where(col(UserSession.expires_at) <= now))   # tidy as we go
+        token = secrets.token_urlsafe(32)
+        session.add(UserSession(id=_token_id(token), user_id=user.id, created_at=now,
+                                expires_at=now + timedelta(seconds=SESSION_MAX_AGE_S)))
+        response.set_cookie(COOKIE, self._serializer.dumps(token), max_age=SESSION_MAX_AGE_S, path="/",
                             httponly=True, secure=True, samesite="lax")
 
-    def clear_session(self, response: Response) -> None:
+    def end_session(self, request: Request, response: Response, session: Session) -> None:
+        """Revoke this browser's session (server-side) and clear its cookie. Caller commits."""
+        if (token := self._token(request)) and (row := session.get(UserSession, _token_id(token))):
+            session.delete(row)
         response.delete_cookie(COOKIE, path="/", httponly=True, secure=True, samesite="lax")
 
-    def user(self, request: Request, session: Session) -> User | None:
-        token = request.cookies.get(COOKIE)
-        if not token:
+    def _token(self, request: Request) -> str | None:
+        cookie = request.cookies.get(COOKIE)
+        if not cookie:
             return None
         try:
-            data: dict[str, Any] = self._serializer.loads(token, max_age=SESSION_MAX_AGE_S)
+            return self._serializer.loads(cookie, max_age=SESSION_MAX_AGE_S)
         except BadSignature:   # includes expired
             return None
-        user = session.get(User, data.get("u"))
-        if user is None or data.get("f") != _fingerprint(user.password_hash):
+
+    def user(self, request: Request, session: Session) -> User | None:
+        token = self._token(request)
+        row = session.get(UserSession, _token_id(token)) if token else None
+        if row is None or row.expires_at <= utcnow():
             return None
-        return user
+        return session.get(User, row.user_id)
 
     def signed_in(self, request: Request) -> bool:
         if not self.enabled:
@@ -132,7 +157,8 @@ class Auth:
 
 
 def client_ip(request: Request) -> str:
-    # behind Caddy, uvicorn --proxy-headers puts the real client here
+    # Behind Caddy this is the real client only because uvicorn runs with --proxy-headers and
+    # --forwarded-allow-ips set to Caddy's fixed address (Dockerfile / deploy/docker-compose.yml).
     return request.client.host if request.client else "unknown"
 
 

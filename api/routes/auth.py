@@ -26,28 +26,29 @@ def login(body: LoginIn, request: Request, response: Response, session: SessionD
     a: auth.Auth = request.app.state.auth
     if not a.enabled:
         return {"email": None, "auth_disabled": True}
-    ip = auth.client_ip(request)
+    ip, email = auth.client_ip(request), auth.normalize_email(body.email)
     if wait := a.lockout.seconds_left(ip):
         raise HTTPException(429, f"Too many failed sign-ins. Try again in {math.ceil(wait / 60)} min.")
-    user = auth.find_user(session, body.email)
+    user = auth.find_user(session, email)
     if not auth.verify_password(user.password_hash if user else None, body.password):
-        a.lockout.failure(ip)
+        a.lockout.failure(ip, email)
         raise HTTPException(401, "Email or password is incorrect")
     assert user is not None
-    a.lockout.clear(ip)
+    a.lockout.success(ip, email)
     if auth.needs_rehash(user.password_hash):
         user.password_hash = auth.hash_password(body.password)
     user.last_login = utcnow()
     session.add(user)
+    a.start_session(response, session, user)
     session.commit()
-    a.set_session(response, user)
     return {"email": user.email, "auth_disabled": False}
 
 
 @router.post("/logout", status_code=204)
-def logout(request: Request) -> Response:
+def logout(request: Request, session: SessionDep) -> Response:
     response = Response(status_code=204)
-    request.app.state.auth.clear_session(response)
+    request.app.state.auth.end_session(request, response, session)
+    session.commit()
     return response
 
 

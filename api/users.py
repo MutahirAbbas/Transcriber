@@ -16,7 +16,7 @@ from collections.abc import Callable
 
 from sqlmodel import Session, col, select
 
-from api.auth import PASSWORD_MIN, find_user, hash_password, normalize_email, valid_email
+from api.auth import PASSWORD_MIN, end_sessions, find_user, hash_password, normalize_email, valid_email
 from api.config import load_settings
 from api.db import make_engine
 from api.models import User
@@ -49,11 +49,14 @@ def remove_user(session: Session, email: str) -> None:
     user = find_user(session, email)
     if user is None:
         raise UserError(f"No such user: {normalize_email(email)}")
+    assert user.id is not None
+    end_sessions(session, user.id)
     session.delete(user)
     session.commit()
 
 
 def reset_password(session: Session, email: str, password: str) -> None:
+    """New password, and every existing session of theirs is signed out."""
     user = find_user(session, email)
     if user is None:
         raise UserError(f"No such user: {normalize_email(email)}")
@@ -61,6 +64,8 @@ def reset_password(session: Session, email: str, password: str) -> None:
         user.password_hash = hash_password(password)
     except ValueError as e:
         raise UserError(str(e)) from None
+    assert user.id is not None
+    end_sessions(session, user.id)
     session.add(user)
     session.commit()
 
