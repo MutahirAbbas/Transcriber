@@ -1,0 +1,19 @@
+# Build context is an allowlist: code only. Customer audio, the DB, results, secrets and
+# local builds never reach the Docker daemon. (The Dockerfile COPYs named paths as well.)
+**
+!api
+!api/**
+!transcribers
+!transcribers/**
+!scoring
+!scoring/**
+!pipeline.py
+!requirements-server.txt
+!data/keywords.txt
+!web
+!web/**
+web/node_modules
+web/dist
+**/__pycache__
+**/*.pyc
+**/.DS_Store

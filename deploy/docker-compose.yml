@@ -1,0 +1,62 @@
+# Call Analyzer on the server. Run via deploy/deploy.sh:
+#   docker compose -p call-analyzer -f deploy/docker-compose.yml up -d --build
+# Its own project, network and volumes: nothing here touches other containers on the box.
+# Only Caddy publishes ports (80/443); the app is reachable only from Caddy.
+name: call-analyzer
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: call-analyzer-app:latest
+    restart: unless-stopped
+    env_file: /srv/call-analyzer/.env
+    environment:
+      # trust X-Forwarded-For only from Caddy (its fixed address below)
+      FORWARDED_ALLOW_IPS: 10.89.76.2
+    volumes:
+      - /srv/call-analyzer/data:/app/data          # SQLite + uploaded audio
+      - /srv/call-analyzer/backups:/app/backups    # deploy/backup.sh
+    networks:
+      call-analyzer:
+        ipv4_address: 10.89.76.3
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status != 200)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      call-analyzer:
+        ipv4_address: 10.89.76.2
+    depends_on:
+      - app
+    logging: *logging
+
+networks:
+  call-analyzer:
+    ipam:
+      config:
+        - subnet: 10.89.76.0/24
+          ip_range: 10.89.76.128/25   # dynamic addresses stay clear of the fixed .2 / .3
+
+volumes:
+  caddy_data:
+  caddy_config:

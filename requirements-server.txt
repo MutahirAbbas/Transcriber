@@ -1,0 +1,12 @@
+# Server (the Docker image): API, sign-in, redaction, scoring. It never transcribes, so no
+# mlx-whisper here. Minimums are the versions the tests run against.
+fastapi>=0.158
+uvicorn[standard]>=0.54
+sqlmodel>=0.0.48        # aware-UTC datetime columns
+python-multipart>=0.0.32
+python-dotenv>=1.2
+anthropic>=2.0
+pyyaml>=6.0
+httpx>=0.28
+argon2-cffi>=25.1
+itsdangerous>=2.2

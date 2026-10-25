@@ -1,0 +1,5 @@
+# /etc/cron.d/call-analyzer-backup — daily SQLite backup at 03:30. Times are the server clock
+# (UTC on Hetzner's Ubuntu image; check with `timedatectl`). Output goes to syslog:
+#   journalctl -t call-analyzer-backup
+SHELL=/bin/bash
+30 3 * * * deploy /srv/call-analyzer/app/deploy/backup.sh 2>&1 | logger -t call-analyzer-backup

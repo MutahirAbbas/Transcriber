@@ -1,0 +1,5 @@
+# The Mac: transcription worker (python -m worker.remote_worker) and the benchmark providers.
+mlx-whisper>=0.4.3      # Apple Silicon only
+assemblyai>=0.35
+httpx>=0.28
+python-dotenv>=1.2
