@@ -60,6 +60,10 @@ class Transcriber:
     def transcribe(self, audio_path: Path, call_id: str, keywords: list[str] | None = None) -> TranscriptResult:
         raise NotImplementedError
 
+    def load(self) -> None:
+        """Load the model before the first transcribe() (long-running workers call this at
+        startup). Nothing to do for cloud APIs."""
+
     def estimate_cost(self, duration_s: float) -> float:
         return round(self.price_per_hour_usd * duration_s / 3600, 5)
 

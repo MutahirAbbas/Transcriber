@@ -24,6 +24,12 @@ class WhisperLocalTranscriber(Transcriber):
         self.stereo_split = stereo_split
         self.price_per_hour_usd = 0.0
 
+    def load(self) -> None:
+        # mlx_whisper caches models by path + dtype; transcribe() (fp16 default) reuses this one
+        import mlx.core as mx
+        from mlx_whisper.transcribe import ModelHolder
+        ModelHolder.get_model(self.model, mx.float16)
+
     def _run(self, path: Path, prompt: str | None) -> list[Segment]:
         import mlx_whisper
         out = mlx_whisper.transcribe(
