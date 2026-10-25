@@ -104,4 +104,5 @@ def test_health_needs_no_login(settings: Settings) -> None:
     app = create_app(dataclasses.replace(settings, worker_mode="remote", worker_token="t"), start_worker=False)
     with TestClient(app, base_url="https://testserver") as c:
         assert c.get("/api/health").json() == {"ok": True}
+        assert c.head("/api/health").status_code == 200        # curl -I, as in the deploy brief
         assert c.get("/api/calls").status_code == 401

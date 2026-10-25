@@ -118,8 +118,9 @@ def create_app(
     app.state.jobs = queue.Queue()                      # (call_id, "full" | "rescore")
     app.state.transcriber_info = transcriber_info(settings.provider, settings.worker_mode)
 
-    @app.get("/api/health", include_in_schema=False)
-    def health() -> dict[str, bool]:   # container healthcheck; no auth, no data
+    # container healthcheck (GET) and uptime checks like `curl -I` (HEAD); no auth, no data
+    @app.api_route("/api/health", methods=["GET", "HEAD"], include_in_schema=False)
+    def health() -> dict[str, bool]:
         return {"ok": True}
 
     signed_in = [Depends(require_user)]                 # every non-worker /api route
