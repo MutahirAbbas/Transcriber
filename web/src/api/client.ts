@@ -8,9 +8,17 @@ export class ApiError extends Error {
   }
 }
 
-/** Only same-site paths, so ?next= can't send someone off to another origin. */
-export function safeNext(next: string | null): string {
-  return next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/login') ? next : '/'
+/** Only same-origin paths, so ?next= can't send someone to another site after sign-in.
+ *  Parsed against the origin (browsers read `/\evil.example` as `//evil.example`). */
+export function safeNext(next: string | null, origin: string = window.location.origin): string {
+  if (!next || !next.startsWith('/') || next.startsWith('//') || /[\\\x00-\x1f]/.test(next)) return '/'
+  try {
+    const url = new URL(next, origin)
+    if (url.origin !== origin || url.pathname.startsWith('/login')) return '/'
+    return url.pathname + url.search + url.hash
+  } catch {
+    return '/'
+  }
 }
 
 function goToLogin() {
