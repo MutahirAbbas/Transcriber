@@ -35,6 +35,10 @@ class Settings:
     keywords_path: Path = ROOT / "data" / "keywords.txt"   # sent to the worker with each claim
     session_secret: str | None = None        # signs the login cookie; required whenever auth is on
     auth_disabled: bool = False              # AUTH_DISABLED=1: honoured in local mode only
+    # LOGIN_USER / LOGIN_PASS: a sign-in account kept in step with .env at startup (not USER:
+    # that's already the OS account name, and .env never overrides a variable that's set)
+    login_user: str | None = None
+    login_pass: str | None = None
 
     @property
     def remote(self) -> bool:
@@ -60,6 +64,8 @@ def load_settings() -> Settings:
         keywords_path=Path(os.environ.get("CALLBENCH_KEYWORDS", ROOT / "data" / "keywords.txt")),
         session_secret=os.environ.get("SESSION_SECRET") or None,
         auth_disabled=os.environ.get("AUTH_DISABLED", "").strip().lower() in ("1", "true", "yes"),
+        login_user=os.environ.get("LOGIN_USER", "").strip() or None,
+        login_pass=os.environ.get("LOGIN_PASS") or None,
     )
 
 

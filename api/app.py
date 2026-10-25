@@ -1,23 +1,28 @@
 from __future__ import annotations
 
+import logging
 import queue
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-
 from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
+from sqlalchemy.engine import Engine
+from sqlmodel import Session
 
-from api.auth import Auth, require_user
+from api.auth import Auth, normalize_email, require_user
 from api.config import ROOT, Settings, load_scorecard, load_settings  # loads .env — keep before pipeline imports
 from api.db import make_engine
 from api.leases import LeaseReaper
 from api.ratelimit import RateLimiter
 from api.routes import auth as auth_routes, calls, meta, worker as worker_routes
+from api.users import UserError, ensure_env_user
 from api.worker import Scorer, Worker
 from transcribers import get_transcriber
+
+log = logging.getLogger(__name__)
 
 
 def transcriber_info(provider: str, worker_mode: str = "local") -> dict[str, str]:
@@ -54,6 +59,20 @@ def mount_spa(app: FastAPI, dist: Path) -> None:
             return RedirectResponse(f"/login?next={quote(target, safe='')}", status_code=302)
         # no-cache: after a rebuild the page must pick up the new hashed asset names
         return FileResponse(index, headers={"Cache-Control": "no-cache"})
+
+
+def sync_env_login(settings: Settings, engine: Engine) -> None:
+    """Keep the LOGIN_USER / LOGIN_PASS account in step with .env (when sign-in is on)."""
+    if not settings.auth_enabled or not (settings.login_user or settings.login_pass):
+        return
+    if not (settings.login_user and settings.login_pass):
+        raise RuntimeError("Set both LOGIN_USER and LOGIN_PASS, or neither")
+    with Session(engine) as s:
+        try:
+            outcome = ensure_env_user(s, settings.login_user, settings.login_pass)
+        except UserError as e:
+            raise RuntimeError(str(e)) from None
+    log.info("sign-in account %s from LOGIN_USER: %s", normalize_email(settings.login_user), outcome)
 
 
 def _default_scorer() -> Scorer:
@@ -94,6 +113,7 @@ def create_app(
     app.state.settings = settings
     app.state.auth = Auth(settings.session_secret, enabled=settings.auth_enabled)
     app.state.engine = make_engine(settings.db_path)
+    sync_env_login(settings, app.state.engine)
     app.state.scorecard = load_scorecard(settings.scorecard_path)
     app.state.jobs = queue.Queue()                      # (call_id, "full" | "rescore")
     app.state.transcriber_info = transcriber_info(settings.provider, settings.worker_mode)

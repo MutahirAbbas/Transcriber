@@ -16,7 +16,9 @@ from collections.abc import Callable
 
 from sqlmodel import Session, col, select
 
-from api.auth import PASSWORD_MIN, end_sessions, find_user, hash_password, normalize_email, valid_email
+from api.auth import (
+    PASSWORD_MIN, end_sessions, find_user, hash_password, normalize_email, valid_email, verify_password,
+)
 from api.config import load_settings
 from api.db import make_engine
 from api.models import User
@@ -68,6 +70,26 @@ def reset_password(session: Session, email: str, password: str) -> None:
     end_sessions(session, user.id)
     session.add(user)
     session.commit()
+
+
+def ensure_env_user(session: Session, username: str, password: str) -> str:
+    """The LOGIN_USER / LOGIN_PASS account: create it, or update its password when .env
+    changed (which signs out its sessions). Returns what happened. The username needn't
+    be an email."""
+    name = normalize_email(username)
+    if not name or any(c.isspace() for c in name) or len(name) > 254:
+        raise UserError("LOGIN_USER must be a single word or an email address")
+    if len(password) < PASSWORD_MIN:
+        raise UserError(f"LOGIN_PASS must be at least {PASSWORD_MIN} characters")
+    user = find_user(session, name)
+    if user is None:
+        session.add(User(email=name, password_hash=hash_password(password)))
+        session.commit()
+        return "created"
+    if verify_password(user.password_hash, password):
+        return "unchanged"
+    reset_password(session, name, password)
+    return "password updated"
 
 
 def prompt_password(ask: Callable[[str], str] = getpass.getpass) -> str:

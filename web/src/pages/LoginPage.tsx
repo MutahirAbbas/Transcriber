@@ -53,9 +53,10 @@ export function LoginPage() {
         <h1 className="m-0 text-h1d font-semibold tracking-snug">Sign in</h1>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="email" className="text-sm text-muted font-medium">
-            Email
+            Email or username
           </label>
-          <input id="email" type="email" autoComplete="username" required autoFocus value={email}
+          <input id="email" type="text" autoComplete="username" autoCapitalize="none" spellCheck={false}
+                 required autoFocus value={email}
                  onChange={(e) => setEmail(e.target.value)} className={input} />
         </div>
         <div className="flex flex-col gap-1.5">
