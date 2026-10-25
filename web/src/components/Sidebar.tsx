@@ -2,9 +2,9 @@ import type { ComponentType } from 'react'
 import { Link } from 'react-router-dom'
 
 import { api } from '../api/client'
-import { useMe, useSettings } from '../api/hooks'
-import { transcriberLabel } from '../lib/format'
+import { useMe } from '../api/hooks'
 import { AgentsIcon, CallsIcon, LogoIcon, ScorecardIcon, SettingsIcon } from './Icons'
+import { TranscriberStatus } from './TranscriberStatus'
 
 const item = 'flex items-center gap-2.5 px-2.5 py-2.5 rounded-control min-h-tap'
 
@@ -16,7 +16,6 @@ const STUBS: [string, ComponentType][] = [
 ]
 
 export function Sidebar() {
-  const { data: settings } = useSettings()
   const { data: me } = useMe()
   return (
     <nav
@@ -49,12 +48,7 @@ export function Sidebar() {
       ))}
 
       <div className="hidden md:block grow" />
-      <div className="basis-full md:basis-auto px-2.5 pt-3 md:py-3 border-t border-border flex flex-col gap-1">
-        <span className="text-xs text-muted uppercase tracking-label">Transcriber</span>
-        <span className="font-mono text-sm text-ink">
-          {settings ? transcriberLabel(settings.provider, settings.model) : '…'}
-        </span>
-      </div>
+      <TranscriberStatus />
       {me?.email && (
         <div className="basis-full md:basis-auto px-2.5 flex items-center justify-between gap-2 text-sm">
           <span className="truncate text-muted" title={me.email}>

@@ -24,6 +24,7 @@ export default {
       sale: { bg: '#E3F3EC', text: '#166A48' },
       badge: { bg: '#EEF0F4', text: '#374151' },
       customer: '#9CA3AF', // transcript legend swatch
+      idle: '#9CA3AF', // offline transcriber dot
       moment: {
         bg: '#FDF3E7',
         border: '#F0C9A0',

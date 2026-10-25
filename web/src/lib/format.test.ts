@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  categoryLabel, formatDuration, formatTimestamp, formatWhen, outcomeLabel, parseTimestamp, toneOf10, toneOf100,
+  categoryLabel, formatAgo, formatDuration, formatTimestamp, formatWhen, outcomeLabel, parseTimestamp, toneOf10,
+  toneOf100,
 } from './format'
 
 describe('durations and timestamps', () => {
@@ -34,6 +35,15 @@ describe('formatWhen', () => {
     expect(formatWhen(new Date(2026, 9, 17, 9, 5).toISOString(), now)).toBe('Oct 17, 9:05 AM')
     expect(formatWhen(new Date(2025, 9, 17, 9, 5).toISOString(), now)).toBe('Oct 17, 2025, 9:05 AM')
     expect(formatWhen(new Date(2026, 9, 21, 12, 44).toISOString(), now, ' ')).toBe('Today 12:44 PM')
+  })
+})
+
+describe('formatAgo', () => {
+  const now = new Date('2026-10-26T12:00:00Z')
+  const ago = (s: number) => formatAgo(new Date(now.getTime() - s * 1000).toISOString(), now)
+  it('rounds down to the largest unit', () => {
+    expect([ago(5), ago(90), ago(59 * 60), ago(2 * 3600 + 59), ago(3 * 86_400)]).toEqual(
+      ['just now', '1 min ago', '59 min ago', '2 h ago', '3 d ago'])
   })
 })
 

@@ -54,6 +54,10 @@ export function useInProgress() {
   return query
 }
 
+/** Remote mode only: is the Mac transcriber connected? */
+export const useWorkerStatus = (enabled: boolean) =>
+  useQuery({ queryKey: ['worker-status'], queryFn: api.workerStatus, enabled, refetchInterval: 30_000 })
+
 export const useMe = () => useQuery({ queryKey: ['me'], queryFn: api.me, staleTime: Infinity })
 
 export const useStats = () => useQuery({ queryKey: keys.stats, queryFn: api.stats })
