@@ -6,6 +6,7 @@ import secrets
 import string
 import subprocess
 from pathlib import Path
+from typing import BinaryIO
 
 from transcribers import audio_channels, audio_duration
 
@@ -18,6 +19,29 @@ AUDIO_TYPES = {
     ".webm": "audio/webm",
 }
 MAX_DURATION_S = 2 * 60 * 60
+# Matches Caddy's request_body max_size 500MB (decimal). Telephony recordings are far
+# smaller (8 kHz stereo WAV ≈ 115 MB/h); 44.1 kHz stereo WAV passes this at ≈ 47 min.
+MAX_UPLOAD_BYTES = 500_000_000
+_CHUNK = 1 << 20
+
+
+class UploadTooLarge(Exception):
+    pass
+
+
+def save_upload(src: BinaryIO, dest: Path, limit: int = MAX_UPLOAD_BYTES) -> int:
+    """Copy an upload to disk 1 MB at a time, stopping at `limit` bytes. Returns the size.
+
+    Starlette has already spooled the multipart file to a temp file on disk (anything
+    over 1 MB), so no part of a large upload sits in memory."""
+    written = 0
+    with dest.open("wb") as out:
+        while chunk := src.read(_CHUNK):
+            written += len(chunk)
+            if written > limit:
+                raise UploadTooLarge
+            out.write(chunk)
+    return written
 
 _ID_ALPHABET = string.ascii_lowercase + string.digits
 

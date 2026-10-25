@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import io
-import shutil
 from datetime import timedelta
 from pathlib import Path
 from typing import Annotated, Any
@@ -14,8 +13,8 @@ from sqlmodel import Session
 from api import derive, repo
 from api.db import get_session
 from api.media import (
-    AUDIO_TYPES, MAX_DURATION_S, UnreadableAudio, agent_slug_from_filename, audio_ext, find_audio, make_call_id,
-    probe,
+    AUDIO_TYPES, MAX_DURATION_S, MAX_UPLOAD_BYTES, UnreadableAudio, UploadTooLarge, agent_slug_from_filename,
+    audio_ext, find_audio, make_call_id, probe, save_upload,
 )
 from api.models import TERMINAL, Agent, Call, CallStatus, utcnow
 
@@ -54,6 +53,8 @@ def upload_calls(
     for f in files:
         if audio_ext(f.filename or "") is None:
             raise HTTPException(400, f"{f.filename} is not an audio file ({', '.join(AUDIO_TYPES)})")
+        if f.size is not None and f.size > MAX_UPLOAD_BYTES:
+            raise HTTPException(413, f"{f.filename} is larger than {MAX_UPLOAD_BYTES // 1_000_000} MB")
 
     chosen: Agent | None = None
     if agent:
@@ -69,9 +70,11 @@ def upload_calls(
             name = f.filename or ""
             call_id = make_call_id(name)
             dest = settings.uploads_dir / f"{call_id}{audio_ext(name)}"
-            with dest.open("wb") as out:
-                shutil.copyfileobj(f.file, out)
-            saved.append((f, call_id, dest))
+            saved.append((f, call_id, dest))   # before writing: a failed copy is cleaned up too
+            try:
+                save_upload(f.file, dest, MAX_UPLOAD_BYTES)
+            except UploadTooLarge:
+                raise HTTPException(413, f"{name} is larger than {MAX_UPLOAD_BYTES // 1_000_000} MB") from None
             try:
                 probed[call_id] = probe(dest)
             except UnreadableAudio as e:

@@ -2,7 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { useEffect, useRef } from 'react'
 
 import { api } from './client'
-import type { CallStatus, ListParams } from './types'
+import type { CallStatus, CallSummary, ListParams } from './types'
 
 const POLL_MS = 2000
 
@@ -76,8 +76,24 @@ export function useCall(callId: string) {
 export function useUpload() {
   const invalidate = useInvalidateCalls()
   return useMutation({
-    mutationFn: ({ files, agent }: { files: File[]; agent: string }) => api.upload(files, agent),
-    onSuccess: invalidate,
+    // One request per file: each stays under the proxy's per-request size limit, each shows up
+    // in the strip as soon as it lands, and one bad file doesn't stop the rest.
+    mutationFn: async ({ files, agent }: { files: File[]; agent: string }) => {
+      const created: CallSummary[] = []
+      const failed: string[] = []
+      for (const file of files) {
+        try {
+          created.push(...(await api.upload([file], agent)))
+          invalidate()
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'upload failed'
+          failed.push(msg.includes(file.name) ? msg : `${file.name}: ${msg}`)
+        }
+      }
+      if (failed.length) throw new Error(failed.join(' · '))
+      return created
+    },
+    onSettled: invalidate,
   })
 }
 
