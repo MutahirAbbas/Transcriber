@@ -103,9 +103,10 @@ def upload_calls(
         created.append(row)
     session.commit()
 
-    for row in created:
-        if row.status == CallStatus.queued:
-            request.app.state.jobs.put((row.id, "full"))
+    if not settings.remote:   # remote: stays queued until a Mac worker claims it
+        for row in created:
+            if row.status == CallStatus.queued:
+                request.app.state.jobs.put((row.id, "full"))
     return [derive.call_summary(r, repo.agent_name(session, r.agent_id), _order(request)) for r in created]
 
 

@@ -1,13 +1,14 @@
-import { isActive, useInProgress } from '../../api/hooks'
+import { isActive, useInProgress, useSettings } from '../../api/hooks'
 import type { CallSummary } from '../../api/types'
 import { formatDuration } from '../../lib/format'
 import { smallCard } from '../../lib/ui'
 import { Bar } from '../Badges'
 
-function stageLabel(c: CallSummary): string {
+// remote: queued means no transcriber has claimed it yet (the Mac may be offline)
+export function stageLabel(c: CallSummary, remote: boolean): string {
   switch (c.status) {
     case 'queued':
-      return 'Queued'
+      return remote ? 'Waiting for transcriber' : 'Queued'
     case 'transcribing':
       return `Transcribing · ${Math.round(c.progress * 100)}%`
     case 'scoring':
@@ -21,6 +22,7 @@ function stageLabel(c: CallSummary): string {
 
 export function ProcessingStrip() {
   const { data } = useInProgress()
+  const remote = useSettings().data?.worker_mode === 'remote'
   if (!data?.length) return null
   const queued = data.filter(isActive).length
 
@@ -45,7 +47,7 @@ export function ProcessingStrip() {
               <div role="progressbar" aria-label={`${c.filename} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
                 <Bar value={failed ? 1 : c.progress} className={failed ? 'bg-red' : 'bg-accent'} />
               </div>
-              <div className={`text-sm break-words ${failed ? 'text-red' : 'text-nav'}`}>{stageLabel(c)}</div>
+              <div className={`text-sm break-words ${failed ? 'text-red' : 'text-nav'}`}>{stageLabel(c, remote)}</div>
             </li>
           )
         })}

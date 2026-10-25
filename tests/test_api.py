@@ -176,7 +176,8 @@ def test_in_progress_and_stats(client: TestClient, app: FastAPI, add_call) -> No
 def test_agents_and_settings(client: TestClient, app: FastAPI, add_call) -> None:
     _seed(add_call, app)
     assert [a["name"] for a in client.get("/api/agents").json()] == ["Jerome Blake", "Keisha Monroe"]
-    assert client.get("/api/settings").json() == {"provider": "whisper_local", "model": "whisper-large-v3-turbo"}
+    assert client.get("/api/settings").json() == {
+        "provider": "whisper_local", "model": "whisper-large-v3-turbo", "worker_mode": "local"}
 
 
 # ---- one call ----------------------------------------------------------------------

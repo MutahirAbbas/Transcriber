@@ -2,7 +2,11 @@
 (local Whisper uses the GPU).
 
 Jobs are `(call_id, mode)` with mode "full" (transcribe + score through
-`pipeline.process_call`) or "rescore" (score the stored transcript again).
+`pipeline.process_call`) or "rescore" (score the stored transcript — used by
+Re-score, and in remote mode for every transcript a Mac worker posts back).
+
+In remote mode this worker never transcribes: queued calls wait for a Mac to
+claim them over /api/worker, and only scoring runs here.
 """
 from __future__ import annotations
 
@@ -47,9 +51,10 @@ class Worker:
         jobs: queue.Queue[Job | None],
         uploads_dir: Path,
         provider: str,
-        process_call: Callable[..., dict],
+        process_call: Callable[..., dict] | None,   # None in remote mode
         make_scorer: Callable[[], Scorer],
         tick_s: float = TICK_S,
+        remote: bool = False,
     ) -> None:
         self.engine = engine
         self.jobs = jobs
@@ -57,6 +62,7 @@ class Worker:
         self.provider = provider
         self.process_call = process_call
         self.tick_s = tick_s
+        self.remote = remote
         # one scorer for the app's lifetime; if it can't be built (no API key), every job says why
         self._scorer: Scorer | None = None
         self._scorer_error: Exception | None = None
@@ -78,7 +84,10 @@ class Worker:
         self._thread.join(timeout)
 
     def recover(self) -> int:
-        """Re-queue rows a previous run left unfinished. Returns how many."""
+        """Re-queue rows a previous run left unfinished. Returns how many jobs it queued.
+
+        Remote mode only resumes scoring: queued and leased calls belong to the Mac
+        worker (expired leases are handled by api.leases)."""
         with Session(self.engine) as s:
             rows = s.exec(
                 select(Call).where(col(Call.status).not_in(TERMINAL)).order_by(col(Call.uploaded_at))
@@ -87,6 +96,10 @@ class Worker:
             for call in rows:
                 if call.status == CallStatus.scoring and call.transcript_json:
                     jobs.append((call.id, "rescore"))
+                elif self.remote:
+                    if call.status == CallStatus.scoring:   # scoring with no transcript: needs one first
+                        call.status, call.progress = CallStatus.queued, 0.0
+                        s.add(call)
                 else:
                     call.status, call.progress = CallStatus.queued, 0.0
                     s.add(call)
@@ -125,6 +138,8 @@ class Worker:
         return self._scorer
 
     def _full(self, call_id: str) -> None:
+        if self.process_call is None:
+            raise RuntimeError("This server doesn't transcribe (WORKER_MODE=remote)")
         with Session(self.engine) as s:
             call = s.get(Call, call_id)
             if call is None:       # deleted while queued

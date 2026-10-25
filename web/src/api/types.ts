@@ -90,9 +90,12 @@ export interface Agent {
   slug: string
 }
 
+export type WorkerMode = 'local' | 'remote'
+
 export interface TranscriberSettings {
   provider: string
   model: string
+  worker_mode: WorkerMode
 }
 
 export interface ListParams {

@@ -16,12 +16,12 @@ from api.worker import Scorer, Worker
 from transcribers import get_transcriber
 
 
-def transcriber_info(provider: str) -> dict[str, str]:
+def transcriber_info(provider: str, worker_mode: str = "local") -> dict[str, str]:
     try:
         model = get_transcriber(provider).model
     except Exception:  # e.g. a cloud provider whose API key isn't set
         model = ""
-    return {"provider": provider, "model": model.split("/")[-1]}
+    return {"provider": provider, "model": model.split("/")[-1], "worker_mode": worker_mode}
 
 
 def mount_spa(app: FastAPI, dist: Path) -> None:
@@ -56,7 +56,7 @@ def create_app(
     web_dist: Path | None = ROOT / "web" / "dist",
 ) -> FastAPI:
     settings = settings or load_settings()
-    if process_call is None:
+    if process_call is None and not settings.remote:   # remote mode never transcribes here
         from pipeline import process_call
 
     @asynccontextmanager
@@ -64,7 +64,7 @@ def create_app(
         worker = None
         if start_worker:
             worker = Worker(app.state.engine, app.state.jobs, settings.uploads_dir, settings.provider,
-                            process_call, make_scorer)
+                            None if settings.remote else process_call, make_scorer, remote=settings.remote)
             worker.start()
         app.state.worker = worker
         yield
@@ -76,7 +76,7 @@ def create_app(
     app.state.engine = make_engine(settings.db_path)
     app.state.scorecard = load_scorecard(settings.scorecard_path)
     app.state.jobs = queue.Queue()                      # (call_id, "full" | "rescore")
-    app.state.transcriber_info = transcriber_info(settings.provider)
+    app.state.transcriber_info = transcriber_info(settings.provider, settings.worker_mode)
     app.include_router(calls.router, prefix="/api")
     app.include_router(meta.router, prefix="/api")
     if web_dist and (web_dist / "index.html").is_file():   # built by scripts/serve.sh; absent in dev
