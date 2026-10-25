@@ -9,13 +9,16 @@ export class ApiError extends Error {
 }
 
 /** Only same-origin paths, so ?next= can't send someone to another site after sign-in.
- *  Parsed against the origin (browsers read `/\evil.example` as `//evil.example`). */
+ *  Checks the input (browsers read `/\evil.example` as `//evil.example`) and the normalised
+ *  result (`/..//evil.example` normalises to `//evil.example`). */
 export function safeNext(next: string | null, origin: string = window.location.origin): string {
-  if (!next || !next.startsWith('/') || next.startsWith('//') || /[\\\x00-\x1f]/.test(next)) return '/'
+  const unsafe = (s: string) => !s.startsWith('/') || s.startsWith('//') || /[\\\x00-\x1f]/.test(s)
+  if (!next || unsafe(next)) return '/'
   try {
     const url = new URL(next, origin)
-    if (url.origin !== origin || url.pathname.startsWith('/login')) return '/'
-    return url.pathname + url.search + url.hash
+    const out = url.pathname + url.search + url.hash
+    if (url.origin !== origin || unsafe(out) || url.pathname.startsWith('/login')) return '/'
+    return out
   } catch {
     return '/'
   }

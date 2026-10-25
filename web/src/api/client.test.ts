@@ -15,6 +15,8 @@ describe('safeNext', () => {
     const bad = [
       null, '', 'calls', 'https://evil.example', '//evil.example', '/\\evil.example', '/\\/evil.example',
       '/\tevil', '/\r\nevil', '/login?next=/x', '/login',
+      // normalise to a protocol-relative "//evil.example"
+      '/..//evil.example', '/.//evil.example', '/x/..//evil.example', '/%2e%2e//evil.example',
     ]
     for (const next of bad) expect(safeNext(next, ORIGIN), String(next)).toBe('/')
   })
