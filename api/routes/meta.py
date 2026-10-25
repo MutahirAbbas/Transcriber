@@ -6,7 +6,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request
 from sqlmodel import Session, col, select
 
-from api import repo
+from api import leases, repo
 from api.db import get_session
 from api.models import Agent
 
@@ -29,3 +29,9 @@ def agents(session: SessionDep) -> list[dict[str, Any]]:
 @router.get("/settings")
 def settings(request: Request) -> dict[str, str]:
     return request.app.state.transcriber_info
+
+
+@router.get("/worker/status")
+def worker_status(request: Request) -> dict[str, Any]:
+    """Remote transcription worker: {online, last_seen, worker_id, model}."""
+    return leases.worker_status(request.app.state.engine)

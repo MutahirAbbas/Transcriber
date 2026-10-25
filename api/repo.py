@@ -107,6 +107,28 @@ def in_progress(session: Session, errors_since: datetime) -> list[tuple[Call, st
     return list(session.exec(stmt).all())
 
 
+DEFAULT_RTF = 0.15        # local Whisper, until there are measured calls
+RTF_SAMPLES = 10
+
+
+def recent_rtf(session: Session, provider: str, stereo: bool | None) -> float:
+    """Mean latency/duration of the last few finished calls from this provider —
+    same channel layout if there are any (stereo split runs Whisper twice)."""
+    ratio = (func.json_extract(Call.transcript_json, "$.latency_s")
+             / func.json_extract(Call.transcript_json, "$.audio_duration_s"))
+    for same_layout in (True, False):
+        stmt = select(ratio).where(
+            Call.status == CallStatus.done, Call.provider == provider, col(Call.transcript_json).is_not(None),
+        )
+        if same_layout:
+            stmt = stmt.where(Call.stereo == stereo)
+        ratios = [r for r in session.exec(stmt.order_by(col(Call.scored_at).desc()).limit(RTF_SAMPLES)).all()
+                  if r and r > 0]
+        if ratios:
+            return sum(ratios) / len(ratios)
+    return DEFAULT_RTF
+
+
 def agent_name(session: Session, agent_id: int | None) -> str | None:
     agent = session.get(Agent, agent_id) if agent_id is not None else None
     return agent.name if agent else None

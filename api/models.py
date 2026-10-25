@@ -47,3 +47,17 @@ class Call(SQLModel, table=True):
     transcript_json: str | None = None
     score_json: str | None = None
     scored_at: datetime | None = None
+    # remote mode: the Mac worker currently holding this call (see api.leases)
+    lease_until: datetime | None = None
+    attempts: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
+    worker_id: str | None = None
+
+
+class WorkerSeen(SQLModel, table=True):
+    """Last contact from each remote transcription worker, for the sidebar status."""
+
+    __tablename__ = "workers"
+
+    id: str = Field(primary_key=True)      # WORKER_ID
+    last_seen: datetime
+    model: str | None = None               # transcriber model from its last transcript

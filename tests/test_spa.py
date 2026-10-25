@@ -46,6 +46,9 @@ def test_api_is_untouched(spa: TestClient) -> None:
     for path in ("/api", "/api/nope", "/api/calls/missing-id"):
         r = spa.get(path)
         assert r.status_code == 404 and r.headers["content-type"] == "application/json"
+    for method in ("post", "put", "delete"):
+        r = getattr(spa, method)("/api/nope")
+        assert r.status_code == 404 and r.headers["content-type"] == "application/json"
 
 
 def test_no_escape_from_dist(spa: TestClient) -> None:

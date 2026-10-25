@@ -19,7 +19,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
 
-from sqlalchemy import func
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, col, select
 
@@ -31,8 +30,7 @@ from transcribers.base import Segment, TranscriptResult
 
 log = logging.getLogger(__name__)
 
-DEFAULT_RTF = 0.15        # local Whisper, until there are measured calls
-RTF_SAMPLES = 10
+DEFAULT_RTF = repo.DEFAULT_RTF
 TICK_S = 2.0
 MAX_TRANSCRIBE_PROGRESS = 0.9
 SCORING_PROGRESS = 0.95
@@ -210,23 +208,8 @@ class Worker:
     # ---- progress --------------------------------------------------------------------
 
     def current_rtf(self, stereo: bool | None) -> float:
-        """Mean latency/duration of the last few finished calls from this provider —
-        same channel layout if there are any (stereo split runs Whisper twice)."""
-        ratio = (func.json_extract(Call.transcript_json, "$.latency_s")
-                 / func.json_extract(Call.transcript_json, "$.audio_duration_s"))
         with Session(self.engine) as s:
-            for same_layout in (True, False):
-                stmt = select(ratio).where(
-                    Call.status == CallStatus.done, Call.provider == self.provider,
-                    col(Call.transcript_json).is_not(None),
-                )
-                if same_layout:
-                    stmt = stmt.where(Call.stereo == stereo)
-                ratios = [r for r in s.exec(stmt.order_by(col(Call.scored_at).desc()).limit(RTF_SAMPLES)).all()
-                          if r and r > 0]
-                if ratios:
-                    return sum(ratios) / len(ratios)
-        return DEFAULT_RTF
+            return repo.recent_rtf(s, self.provider, stereo)
 
     def _update(self, call_id: str, **fields: Any) -> None:
         with Session(self.engine) as s:

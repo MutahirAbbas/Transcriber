@@ -11,7 +11,9 @@ from fastapi.responses import FileResponse
 
 from api.config import ROOT, Settings, load_scorecard, load_settings  # loads .env — keep before pipeline imports
 from api.db import make_engine
-from api.routes import calls, meta
+from api.leases import LeaseReaper
+from api.ratelimit import RateLimiter
+from api.routes import calls, meta, worker as worker_routes
 from api.worker import Scorer, Worker
 from transcribers import get_transcriber
 
@@ -30,6 +32,12 @@ def mount_spa(app: FastAPI, dist: Path) -> None:
     after the /api routers: they match first, and unknown /api paths stay 404s."""
     root = dist.resolve()
     index = root / "index.html"
+
+    # unknown /api paths stay JSON 404s for every method (not a 405 from the page route below)
+    @app.api_route("/api/{rest:path}", methods=["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+                   include_in_schema=False)
+    def api_not_found(rest: str) -> None:
+        raise HTTPException(404, "Not Found")
 
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str) -> FileResponse:
@@ -53,7 +61,7 @@ def create_app(
     start_worker: bool = True,
     process_call: Callable[..., dict] | None = None,
     make_scorer: Callable[[], Scorer] = _default_scorer,
-    web_dist: Path | None = ROOT / "web" / "dist",
+    web_dist: Path | None = None,          # the built front end to serve at / (api.main passes web/dist)
 ) -> FastAPI:
     settings = settings or load_settings()
     if process_call is None and not settings.remote:   # remote mode never transcribes here
@@ -61,13 +69,18 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        worker = None
+        worker = reaper = None
         if start_worker:
             worker = Worker(app.state.engine, app.state.jobs, settings.uploads_dir, settings.provider,
                             None if settings.remote else process_call, make_scorer, remote=settings.remote)
             worker.start()
+            if settings.remote:
+                reaper = LeaseReaper(app.state.engine)
+                reaper.start()
         app.state.worker = worker
         yield
+        if reaper:
+            reaper.stop(timeout=1)
         if worker:
             worker.stop(timeout=1)   # a job mid-transcription is picked up again on next start
 
@@ -79,6 +92,9 @@ def create_app(
     app.state.transcriber_info = transcriber_info(settings.provider, settings.worker_mode)
     app.include_router(calls.router, prefix="/api")
     app.include_router(meta.router, prefix="/api")
+    if settings.remote:
+        app.state.worker_limiter = RateLimiter(rate=5, burst=20)   # per client IP
+        app.include_router(worker_routes.router, prefix="/api")
     if web_dist and (web_dist / "index.html").is_file():   # built by scripts/serve.sh; absent in dev
         mount_spa(app, web_dist)
     return app

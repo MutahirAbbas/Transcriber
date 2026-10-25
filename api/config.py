@@ -31,6 +31,8 @@ class Settings:
     # local: the in-process worker transcribes and scores.
     # remote: never transcribes here — a Mac worker claims calls over /api/worker; we only score.
     worker_mode: str = "local"
+    worker_token: str | None = None          # bearer token for /api/worker/*; unset = worker API refuses all
+    keywords_path: Path = ROOT / "data" / "keywords.txt"   # sent to the worker with each claim
 
     @property
     def remote(self) -> bool:
@@ -47,6 +49,8 @@ def load_settings() -> Settings:
         provider=os.environ.get("TRANSCRIBER", "whisper_local"),
         scorecard_path=ROOT / "scoring" / "scorecard.yaml",
         worker_mode=mode,
+        worker_token=os.environ.get("WORKER_TOKEN") or None,
+        keywords_path=Path(os.environ.get("CALLBENCH_KEYWORDS", ROOT / "data" / "keywords.txt")),
     )
 
 
