@@ -13,7 +13,7 @@ from api.app import create_app
 from api.config import Settings, load_settings
 from api.models import Call, CallStatus
 from api.worker import Worker
-from tests.conftest import make_score, make_transcript
+from tests.conftest import make_score, make_transcript, sign_in
 from tests.test_worker import FakeScorer
 
 
@@ -29,8 +29,8 @@ def remote_app(remote_settings: Settings) -> FastAPI:
 
 @pytest.fixture
 def remote_client(remote_app: FastAPI) -> Iterator[TestClient]:
-    with TestClient(remote_app) as c:
-        yield c
+    with TestClient(remote_app, base_url="https://testserver") as c:
+        yield sign_in(c, remote_app)   # remote mode always needs a login
 
 
 def test_worker_mode_from_env(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -33,10 +33,17 @@ class Settings:
     worker_mode: str = "local"
     worker_token: str | None = None          # bearer token for /api/worker/*; unset = worker API refuses all
     keywords_path: Path = ROOT / "data" / "keywords.txt"   # sent to the worker with each claim
+    session_secret: str | None = None        # signs the login cookie; required whenever auth is on
+    auth_disabled: bool = False              # AUTH_DISABLED=1: honoured in local mode only
 
     @property
     def remote(self) -> bool:
         return self.worker_mode == "remote"
+
+    @property
+    def auth_enabled(self) -> bool:
+        # never off on the server: AUTH_DISABLED is ignored in remote mode
+        return not (self.auth_disabled and not self.remote)
 
 
 def load_settings() -> Settings:
@@ -51,6 +58,8 @@ def load_settings() -> Settings:
         worker_mode=mode,
         worker_token=os.environ.get("WORKER_TOKEN") or None,
         keywords_path=Path(os.environ.get("CALLBENCH_KEYWORDS", ROOT / "data" / "keywords.txt")),
+        session_secret=os.environ.get("SESSION_SECRET") or None,
+        auth_disabled=os.environ.get("AUTH_DISABLED", "").strip().lower() in ("1", "true", "yes"),
     )
 
 

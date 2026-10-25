@@ -3,8 +3,9 @@ import { Route, Routes } from 'react-router-dom'
 import { Sidebar } from './components/Sidebar'
 import { CallDetailPage } from './pages/CallDetailPage'
 import { CallsPage } from './pages/CallsPage'
+import { LoginPage } from './pages/LoginPage'
 
-export function App() {
+function Layout() {
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-ground">
       <Sidebar />
@@ -16,5 +17,14 @@ export function App() {
         </Routes>
       </main>
     </div>
+  )
+}
+
+export function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="*" element={<Layout />} />
+    </Routes>
   )
 }

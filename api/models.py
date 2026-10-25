@@ -53,6 +53,18 @@ class Call(SQLModel, table=True):
     worker_id: str | None = None
 
 
+class User(SQLModel, table=True):
+    """Someone who can sign in. Created with `python -m api.users add` — there's no sign-up."""
+
+    __tablename__ = "users"
+
+    id: int | None = Field(default=None, primary_key=True)
+    email: str = Field(index=True, unique=True)   # stored lower-cased
+    password_hash: str                            # argon2
+    created_at: datetime = Field(default_factory=utcnow)
+    last_login: datetime | None = None
+
+
 class WorkerSeen(SQLModel, table=True):
     """Last contact from each remote transcription worker, for the sidebar status."""
 

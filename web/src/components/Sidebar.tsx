@@ -1,7 +1,8 @@
 import type { ComponentType } from 'react'
 import { Link } from 'react-router-dom'
 
-import { useSettings } from '../api/hooks'
+import { api } from '../api/client'
+import { useMe, useSettings } from '../api/hooks'
 import { transcriberLabel } from '../lib/format'
 import { AgentsIcon, CallsIcon, LogoIcon, ScorecardIcon, SettingsIcon } from './Icons'
 
@@ -16,6 +17,7 @@ const STUBS: [string, ComponentType][] = [
 
 export function Sidebar() {
   const { data: settings } = useSettings()
+  const { data: me } = useMe()
   return (
     <nav
       aria-label="Main"
@@ -53,6 +55,25 @@ export function Sidebar() {
           {settings ? transcriberLabel(settings.provider, settings.model) : '…'}
         </span>
       </div>
+      {me?.email && (
+        <div className="basis-full md:basis-auto px-2.5 flex items-center justify-between gap-2 text-sm">
+          <span className="truncate text-muted" title={me.email}>
+            {me.email}
+          </span>
+          <button type="button" onClick={signOut}
+                  className="shrink-0 min-h-tap md:min-h-8 text-accent hover:text-accent-hover cursor-pointer">
+            Sign out
+          </button>
+        </div>
+      )}
     </nav>
   )
+}
+
+async function signOut() {
+  try {
+    await api.logout()
+  } finally {
+    window.location.assign('/login') // full reload: drops every cached query
+  }
 }

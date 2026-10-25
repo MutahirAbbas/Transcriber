@@ -19,11 +19,14 @@ from api.models import Call, CallStatus, utcnow
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
+    # local dev defaults: AUTH_DISABLED=1 (ignored by remote-mode apps, which then need the secret)
     return Settings(
         db_path=tmp_path / "test.db",
         uploads_dir=tmp_path / "uploads",
         provider="whisper_local",
         scorecard_path=ROOT / "scoring" / "scorecard.yaml",
+        session_secret="test-session-secret",
+        auth_disabled=True,
     )
 
 
@@ -34,8 +37,27 @@ def app(settings: Settings) -> FastAPI:
 
 @pytest.fixture
 def client(app: FastAPI) -> Iterator[TestClient]:
-    with TestClient(app) as c:
+    # https: the session cookie is Secure, so it's only sent back over https
+    with TestClient(app, base_url="https://testserver") as c:
         yield c
+
+
+USER_EMAIL, USER_PASSWORD = "lead@example.com", "correct horse battery"
+
+
+def sign_in(client: TestClient, app: FastAPI) -> TestClient:
+    """Create the test user and sign `client` in (its base_url must be https)."""
+    from api.users import add_user
+    with Session(app.state.engine) as s:
+        add_user(s, USER_EMAIL, USER_PASSWORD)
+    r = client.post("/api/auth/login", json={"email": USER_EMAIL, "password": USER_PASSWORD})
+    assert r.status_code == 200, r.text
+    return client
+
+
+@pytest.fixture
+def signed_in(client: TestClient, app: FastAPI) -> TestClient:
+    return sign_in(client, app)
 
 
 @pytest.fixture

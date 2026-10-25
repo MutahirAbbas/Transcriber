@@ -108,7 +108,8 @@ def test_claim_skips_calls_that_already_have_a_transcript(client: TestClient, qu
     assert _claim(client).status_code == 204
 
 
-def test_last_seen_and_status(client: TestClient, app: FastAPI) -> None:
+def test_last_seen_and_status(signed_in: TestClient, app: FastAPI) -> None:
+    client = signed_in   # status is a user route
     assert client.get("/api/worker/status").json() == {"online": False, "last_seen": None, "worker_id": None, "model": None}
     client.post("/api/worker/claim", json={"worker_id": "Mutahir's Mac", "model": "whisper-large-v3-turbo"},
                 headers={**H, "X-Worker-Id": "Mutahir%27s%20Mac"})

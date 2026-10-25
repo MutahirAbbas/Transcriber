@@ -5,15 +5,17 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
 from pathlib import Path
+from urllib.parse import quote
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, RedirectResponse, Response
 
+from api.auth import Auth, require_user
 from api.config import ROOT, Settings, load_scorecard, load_settings  # loads .env — keep before pipeline imports
 from api.db import make_engine
 from api.leases import LeaseReaper
 from api.ratelimit import RateLimiter
-from api.routes import calls, meta, worker as worker_routes
+from api.routes import auth as auth_routes, calls, meta, worker as worker_routes
 from api.worker import Scorer, Worker
 from transcribers import get_transcriber
 
@@ -28,8 +30,9 @@ def transcriber_info(provider: str, worker_mode: str = "local") -> dict[str, str
 
 def mount_spa(app: FastAPI, dist: Path) -> None:
     """Serve the built front end at /. A path that's a file in `dist` gets that file;
-    any other non-/api path gets index.html so client-side routes load. Register
-    after the /api routers: they match first, and unknown /api paths stay 404s."""
+    any other non-/api path gets index.html so client-side routes load — or, when
+    signed out, a redirect to /login. Register after the /api routers: they match
+    first, and unknown /api paths stay 404s."""
     root = dist.resolve()
     index = root / "index.html"
 
@@ -40,12 +43,15 @@ def mount_spa(app: FastAPI, dist: Path) -> None:
         raise HTTPException(404, "Not Found")
 
     @app.get("/{path:path}", include_in_schema=False)
-    def spa(path: str) -> FileResponse:
+    def spa(path: str, request: Request) -> Response:
         if path == "api" or path.startswith("api/"):
             raise HTTPException(404, "Not Found")
         candidate = (root / path).resolve()
         if path and candidate.is_file() and candidate.is_relative_to(root):
-            return FileResponse(candidate)
+            return FileResponse(candidate)   # built assets hold no call data
+        if path != "login" and not request.app.state.auth.signed_in(request):
+            target = "/" + path + (f"?{request.url.query}" if request.url.query else "")
+            return RedirectResponse(f"/login?next={quote(target, safe='')}", status_code=302)
         # no-cache: after a rebuild the page must pick up the new hashed asset names
         return FileResponse(index, headers={"Cache-Control": "no-cache"})
 
@@ -86,12 +92,16 @@ def create_app(
 
     app = FastAPI(title="call-bench", lifespan=lifespan)
     app.state.settings = settings
+    app.state.auth = Auth(settings.session_secret, enabled=settings.auth_enabled)
     app.state.engine = make_engine(settings.db_path)
     app.state.scorecard = load_scorecard(settings.scorecard_path)
     app.state.jobs = queue.Queue()                      # (call_id, "full" | "rescore")
     app.state.transcriber_info = transcriber_info(settings.provider, settings.worker_mode)
-    app.include_router(calls.router, prefix="/api")
-    app.include_router(meta.router, prefix="/api")
+
+    signed_in = [Depends(require_user)]                 # every non-worker /api route
+    app.include_router(auth_routes.router, prefix="/api")   # login is public; /me checks itself
+    app.include_router(calls.router, prefix="/api", dependencies=signed_in)
+    app.include_router(meta.router, prefix="/api", dependencies=signed_in)
     if settings.remote:
         app.state.worker_limiter = RateLimiter(rate=5, burst=20)   # per client IP
         app.include_router(worker_routes.router, prefix="/api")

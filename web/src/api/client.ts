@@ -1,5 +1,5 @@
 import type {
-  Agent, CallDetail, CallList, CallSummary, Filter, ListParams, Stats, TranscriberSettings,
+  Agent, CallDetail, CallList, CallSummary, Filter, ListParams, Me, Stats, TranscriberSettings, WorkerStatus,
 } from './types'
 
 export class ApiError extends Error {
@@ -8,8 +8,20 @@ export class ApiError extends Error {
   }
 }
 
+/** Only same-site paths, so ?next= can't send someone off to another origin. */
+export function safeNext(next: string | null): string {
+  return next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/login') ? next : '/'
+}
+
+function goToLogin() {
+  if (window.location.pathname === '/login') return
+  const here = window.location.pathname + window.location.search
+  window.location.assign(`/login?next=${encodeURIComponent(here)}`)
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, init)
+  if (res.status === 401 && path !== '/auth/login') goToLogin()
   if (!res.ok) {
     let message = res.statusText || `Request failed (${res.status})`
     try {
@@ -53,6 +65,15 @@ export const api = {
   stats: () => request<Stats>('/stats'),
   agents: () => request<Agent[]>('/agents'),
   settings: () => request<TranscriberSettings>('/settings'),
+  workerStatus: () => request<WorkerStatus>('/worker/status'),
+  me: () => request<Me>('/auth/me'),
+  login: (email: string, password: string) =>
+    request<Me>('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    }),
+  logout: () => request<void>('/auth/logout', { method: 'POST' }),
 }
 
 export const csvUrl = (filter: Filter, q: string) => `/api/calls.csv?${filterQuery(filter, q)}`

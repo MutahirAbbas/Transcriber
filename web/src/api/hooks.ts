@@ -54,6 +54,8 @@ export function useInProgress() {
   return query
 }
 
+export const useMe = () => useQuery({ queryKey: ['me'], queryFn: api.me, staleTime: Infinity })
+
 export const useStats = () => useQuery({ queryKey: keys.stats, queryFn: api.stats })
 export const useAgents = () => useQuery({ queryKey: keys.agents, queryFn: api.agents })
 export const useSettings = () =>

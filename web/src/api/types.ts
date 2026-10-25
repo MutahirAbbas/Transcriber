@@ -90,6 +90,18 @@ export interface Agent {
   slug: string
 }
 
+export interface Me {
+  email: string | null
+  auth_disabled: boolean
+}
+
+export interface WorkerStatus {
+  online: boolean
+  last_seen: string | null
+  worker_id: string | null
+  model: string | null
+}
+
 export type WorkerMode = 'local' | 'remote'
 
 export interface TranscriberSettings {
