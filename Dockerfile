@@ -31,6 +31,7 @@ COPY api/ api/
 COPY transcribers/ transcribers/
 COPY scoring/ scoring/
 COPY pipeline.py .
+COPY scripts/upgrade_calls_v2.py scripts/upgrade_calls_v2.py
 # data/ is a volume at runtime (DB + uploads), so the keyword list lives elsewhere
 COPY data/keywords.txt config/keywords.txt
 COPY --from=web /web/dist web/dist

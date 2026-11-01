@@ -213,7 +213,7 @@ def agent_average(session: Session, agent_id: int | None, now: datetime | None =
 
 # ---- saving and removing ------------------------------------------------------------
 
-def apply_score(session: Session, call: Call, score: dict[str, Any], history_extra: dict[str, Any] | None = None) -> None:
+def apply_score(session: Session, call: Call, score: dict[str, Any]) -> None:
     """Store a good, redacted score. A previous score moves to score_history first."""
     if call.score_json:
         history = json.loads(call.score_history) if call.score_history else []
@@ -222,7 +222,6 @@ def apply_score(session: Session, call: Call, score: dict[str, Any], history_ext
             "scorer_version": call.scorer_version,
             "overall_score": call.overall_score if call.overall_score is not None else derive.overall_score(derive.parse_json(call.score_json)),
             "score": derive.parse_json(call.score_json),
-            **(history_extra or {}),
         })
         call.score_history = json.dumps(history, ensure_ascii=False)
     call.score_json = json.dumps(score, ensure_ascii=False)

@@ -47,6 +47,16 @@ class Scorer(Protocol):
     def score(self, res: TranscriptResult) -> dict: ...
 
 
+def result_from_dict(transcript: dict, call_id: str) -> TranscriptResult:
+    """A stored transcript, ready to score again."""
+    return TranscriptResult(
+        provider=transcript["provider"], model=transcript["model"], call_id=transcript.get("call_id", call_id),
+        segments=[Segment(**seg) for seg in transcript["segments"]],
+        latency_s=transcript["latency_s"], audio_duration_s=transcript["audio_duration_s"],
+        cost_usd=transcript.get("cost_usd", 0.0),
+    )
+
+
 class Worker:
     def __init__(
         self,
@@ -192,13 +202,7 @@ class Worker:
         if self._cancelled(call_id):
             raise CallCancelled
         self._update(call_id, status=CallStatus.scoring, progress=SCORING_PROGRESS, error=None)
-        res = TranscriptResult(
-            provider=transcript["provider"], model=transcript["model"], call_id=transcript.get("call_id", call_id),
-            segments=[Segment(**seg) for seg in transcript["segments"]],
-            latency_s=transcript["latency_s"], audio_duration_s=transcript["audio_duration_s"],
-            cost_usd=transcript.get("cost_usd", 0.0),
-        )
-        self._save(call_id, transcript, self.scorer.score(res))
+        self._save(call_id, transcript, self.scorer.score(result_from_dict(transcript, call_id)))
 
     def _save(self, call_id: str, transcript: dict, score: dict, waveform: list[float] | None = None) -> None:
         with Session(self.engine) as s:

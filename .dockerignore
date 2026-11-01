@@ -8,6 +8,7 @@
 !scoring
 !scoring/**
 !pipeline.py
+!scripts/upgrade_calls_v2.py
 !requirements-server.txt
 !data/keywords.txt
 !web
