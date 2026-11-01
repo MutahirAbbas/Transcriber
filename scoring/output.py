@@ -7,6 +7,7 @@ score and the compliance cap, are decided here and never taken from the model.
 from __future__ import annotations
 
 import logging
+import math
 import re
 from collections.abc import Collection
 from typing import Any
@@ -18,6 +19,8 @@ PLAN_TYPES = ("level", "graded", "guaranteed_issue", "unknown")
 KINDS = ("flag", "coach", "good")
 MAX_COACH = 8
 MAX_WORK_ITEMS = 6
+MAX_AGE = 130
+MAX_USD = 10_000_000
 
 _TS = re.compile(r"^(?:(\d{1,2}):)?(\d{1,3}):(\d{2})$")
 
@@ -42,6 +45,11 @@ def _mmss(ts: Any, where: str) -> str:
     return f"{total // 60:02d}:{total % 60:02d}"
 
 
+def reject_constant(name: str) -> None:
+    """For json.loads: NaN and Infinity aren't JSON, and shouldn't reach the database."""
+    raise ScoreInvalid(f"answer contains {name}")
+
+
 def _text(value: Any, where: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ScoreInvalid(f"{where}: text missing")
@@ -52,14 +60,16 @@ def _opt_str(value: Any) -> str | None:
     return value.strip() or None if isinstance(value, str) else None
 
 
-def _opt_num(value: Any) -> int | float | None:
-    return value if isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0 else None
+def _opt_num(value: Any, limit: int) -> int | float | None:
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
+        return None
+    return value if 0 <= value <= limit else None
 
 
 def _customer(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         return None
-    age = _opt_num(value.get("age"))
+    age = _opt_num(value.get("age"), MAX_AGE)
     out = {
         "first_name": _opt_str(value.get("first_name")),
         "last_name": _opt_str(value.get("last_name")),
@@ -74,8 +84,8 @@ def _sale(value: Any, outcome: str) -> dict[str, Any] | None:
         return None
     plan = value.get("plan_type")
     return {
-        "coverage_usd": _opt_num(value.get("coverage_usd")),
-        "premium_monthly_usd": _opt_num(value.get("premium_monthly_usd")),
+        "coverage_usd": _opt_num(value.get("coverage_usd"), MAX_USD),
+        "premium_monthly_usd": _opt_num(value.get("premium_monthly_usd"), MAX_USD),
         "carrier": _opt_str(value.get("carrier")),
         "plan_type": plan if plan in PLAN_TYPES else "unknown",
     }
@@ -129,20 +139,21 @@ def _findings(value: Any, card: dict[str, Any]) -> tuple[list[dict[str, Any]], i
     return out, dropped
 
 
-def _required_phrases(value: Any, card: dict[str, Any], transcript_text: str) -> list[dict[str, Any]]:
-    """One entry per scorecard phrase. The model's word stands where it gave one; a phrase it
-    skipped is looked up in the transcript."""
+def _required_phrases(value: Any, card: dict[str, Any]) -> list[dict[str, Any]]:
+    """One entry per scorecard phrase, or the answer is invalid. This decides a critical flag, and
+    a text search can't tell who said a phrase or whether it came before personal data, so a
+    phrase the model skipped is retried rather than guessed, and `present` must cite when."""
     given = {r.get("phrase"): r for r in value if isinstance(r, dict)} if isinstance(value, list) else {}
     out = []
     for req in card["required_phrases"]:
         phrase = req["phrase"]
+        where = f"required_phrases[{phrase}]"
         entry = given.get(phrase)
-        if entry is not None and isinstance(entry.get("present"), bool):
-            present = entry["present"]
-            ts = _mmss(entry["timestamp"], f"required_phrases[{phrase}]") if present and entry.get("timestamp") else None
-        else:
-            present, ts = phrase.lower() in transcript_text.lower(), None
-        out.append({"phrase": phrase, "present": present, "timestamp": ts})
+        if entry is None or not isinstance(entry.get("present"), bool):
+            raise ScoreInvalid(f"{where}: no answer")
+        present = entry["present"]
+        out.append({"phrase": phrase, "present": present,
+                    "timestamp": _mmss(entry.get("timestamp"), where) if present else None})
     return out
 
 
@@ -201,7 +212,14 @@ def apply_compliance_cap(scores: dict[str, dict[str, Any]], findings: list[dict[
             entry["score"] = cap["max_score"]
 
 
-def normalize_score(data: Any, card: dict[str, Any], speakers: Collection[str] = (), transcript_text: str = "") -> dict[str, Any]:
+def normalize_score(data: Any, card: dict[str, Any], speakers: Collection[str] = ()) -> dict[str, Any]:
+    try:
+        return _normalize(data, card, speakers)
+    except (TypeError, OverflowError, AttributeError):   # a list where a string belongs, and the like
+        raise ScoreInvalid("answer has the wrong shape") from None
+
+
+def _normalize(data: Any, card: dict[str, Any], speakers: Collection[str]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ScoreInvalid("answer is not a JSON object")
     outcome = data.get("call_outcome")
@@ -210,7 +228,7 @@ def normalize_score(data: Any, card: dict[str, Any], speakers: Collection[str] =
     agent_speaker = _opt_str(data.get("agent_speaker"))
     scores = _scores(data.get("scores"), card)
     findings, dropped = _findings(data.get("findings"), card)
-    phrases = _required_phrases(data.get("required_phrases"), card, transcript_text)
+    phrases = _required_phrases(data.get("required_phrases"), card)
     findings += _missing_phrase_flags(phrases, findings, card)
     findings.sort(key=lambda f: timestamp_s(f["timestamp"]))
     apply_compliance_cap(scores, findings, card)
