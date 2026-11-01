@@ -165,7 +165,8 @@ def redact_transcript_dict(d: dict) -> dict:
 
 
 # Structural fields the UI relies on verbatim; _meta is ours, not call content.
-_SCORE_KEEP = {"timestamp", "agent_speaker", "agent_name", "call_outcome", "_meta"}
+_SCORE_KEEP = {"timestamp", "start", "agent_speaker", "agent_name", "call_outcome", "phase", "kind", "flag_type",
+               "severity", "label", "phrase", "plan_type", "_meta"}
 
 
 def redact_score(score: dict) -> dict:

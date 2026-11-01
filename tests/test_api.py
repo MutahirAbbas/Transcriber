@@ -188,7 +188,7 @@ def test_detail(client: TestClient, add_call) -> None:
     d = client.get("/api/calls/c1").json()
     assert d["speaker_map"] == {"SPEAKER_0": "Agent", "SPEAKER_1": "Customer"}
     assert d["rtf"] == 0.05
-    assert d["scorecard"]["required_phrases"] == ["recorded", "licensed"]
+    assert d["scorecard"]["required_phrases"] == ["recorded line", "licensed agent"]
     assert d["scorecard"]["categories"][0] == "opening"
     assert d["transcript"]["segments"][0]["text"] == "Hi, recorded line"
     assert client.get("/api/calls/nope").status_code == 404

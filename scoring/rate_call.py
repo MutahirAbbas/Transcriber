@@ -10,8 +10,8 @@ import os
 from pathlib import Path
 
 import anthropic
-import yaml
 
+from scoring.scorecard import load_card
 from transcribers.base import TranscriptResult
 
 HERE = Path(__file__).resolve().parent
@@ -44,7 +44,7 @@ def _extract_json(raw: str) -> str:
 
 class CallScorer:
     def __init__(self, scorecard_path: Path = HERE / "scorecard.yaml", model: str = DEFAULT_MODEL):
-        self.card = yaml.safe_load(scorecard_path.read_text())
+        self.card = load_card(scorecard_path)
         self.model = model
         self.client = anthropic.Anthropic()
         self.system = self._build_system()
@@ -54,8 +54,8 @@ class CallScorer:
             f"- {name} (weight {c['weight']}): {c['description'].strip()}"
             for name, c in self.card["categories"].items()
         )
-        flags = "\n".join(f"- {f}" for f in self.card.get("red_flags", []))
-        req = ", ".join(self.card.get("required_phrases", []))
+        flags = "\n".join(f"- {f['label']}" for f in self.card["flag_types"])
+        req = ", ".join(r["phrase"] for r in self.card["required_phrases"])
         return f"""You are a QA coach for a final-expense life insurance call center. You score
 recorded sales calls against a fixed scorecard and produce coaching notes a team lead
 can act on. Be specific, cite timestamps, and don't inflate scores.

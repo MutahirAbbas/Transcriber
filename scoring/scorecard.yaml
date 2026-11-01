@@ -1,52 +1,75 @@
 # Final-expense sales call scorecard.
 # This is a STARTER. The real one comes from Leo / the top closers — replace freely.
-# Each category: weight (sums to 100) and what a 10 vs a 3 looks like.
+# Each category: label, weight (sums to 100) and what a 10 vs a 3 looks like.
+version: 2
+target_score: 60
 
 categories:
   opening:
+    label: Opening
     weight: 15
     description: >
       Agent introduces self and company clearly, states the reason for the call,
       confirms they're speaking to the right person, sets a friendly tone within
       the first 30 seconds.
   discovery:
+    label: Discovery
     weight: 20
     description: >
       Agent asks about the customer's situation before pitching: age, health,
       existing coverage, who they want to protect, budget. Listens more than talks
       in this phase.
   value_presentation:
+    label: Value
     weight: 20
     description: >
       Agent ties the product to what the customer said they care about (funeral
       costs, not burdening family). Explains coverage amount, premium, and type
       (level / graded / guaranteed issue) in plain language.
   objection_handling:
+    label: Objections
     weight: 20
     description: >
       Agent acknowledges objections (price, "need to think", "talk to my spouse",
       "already have coverage") without arguing, isolates the real concern, and
       responds with relevant information or reassurance.
   compliance:
+    label: Compliance
     weight: 15
     description: >
       Agent states the call is recorded, confirms consent, does not misrepresent
       the product, does not pressure or use fear tactics, discloses carrier and
       licensed-agent status where required.
   close:
+    label: Close
     weight: 10
     description: >
       Agent asks for the sale or next concrete step, handles the application /
       enrollment handoff smoothly, confirms details back to the customer.
 
-# Phrases that MUST appear (compliance). Used for a hard flag, not the score.
-required_phrases:
-  - "recorded"
-  - "licensed"
+# The ONLY flags the scorer may raise. Anything else is dropped after it answers.
+flag_types:
+  - {id: no_recording_disclosure,   label: "No recording disclosure",              severity: critical}
+  - {id: no_licensed_statement,     label: "No licensed-agent statement",          severity: critical}
+  - {id: approval_before_uw,        label: "Approval promised before underwriting", severity: critical}
+  - {id: agent_handled_esign,       label: "Agent handled the customer's e-signature or code", severity: critical}
+  - {id: ignored_end_request,       label: "Continued after a request to end the call", severity: critical}
+  - {id: carrier_after_payment,     label: "Carrier named after payment data",     severity: major}
+  - {id: health_answer_prejudged,   label: "Health answer pre-judged or misrecorded", severity: major}
+  - {id: pressure_tactics,          label: "Fear, shame or pressure tactics",      severity: major}
 
-# Things that should never happen. Any hit is flagged.
-red_flags:
-  - guarantees coverage without underwriting questions
-  - states the policy "never" increases in price when it's graded/term
-  - continues after the customer clearly asks to end the call or be removed
-  - misstates the carrier name
+# Each maps to the flag raised when it's missing.
+required_phrases:
+  - {phrase: "recorded line",  flag: no_recording_disclosure, before_personal_data: true}
+  - {phrase: "licensed agent", flag: no_licensed_statement,   before_personal_data: true}
+
+# Order of the phase bar; each maps to the category its label shows.
+phases:
+  - {id: opening,     label: "Opening",     category: opening}
+  - {id: discovery,   label: "Discovery",   category: discovery}
+  - {id: value,       label: "Value",       category: value_presentation}
+  - {id: application, label: "Application", category: compliance}
+  - {id: objections,  label: "Objections",  category: objection_handling}
+  - {id: close,       label: "Close",       category: close}
+
+compliance_cap: {if_any: critical, max_score: 3}

@@ -3,11 +3,12 @@ at import time, so .env has to be loaded first."""
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
 from dotenv import load_dotenv
+
+from scoring.scorecard import load_card
 
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
@@ -17,6 +18,10 @@ load_dotenv(ROOT / ".env")
 class Scorecard:
     categories: list[str]          # scorecard order — tie-break for "weakest"
     required_phrases: list[str]
+    version: int = 2
+    target_score: int = 60
+    labels: dict[str, str] = field(default_factory=dict)     # category key → label
+    phases: list[dict] = field(default_factory=list)         # {id, label, category}, in bar order
 
 
 WORKER_MODES = ("local", "remote")
@@ -70,8 +75,12 @@ def load_settings() -> Settings:
 
 
 def load_scorecard(path: Path) -> Scorecard:
-    card = yaml.safe_load(path.read_text())
+    card = load_card(path)
     return Scorecard(
-        categories=list(card.get("categories", {})),
-        required_phrases=list(card.get("required_phrases", [])),
+        categories=list(card["categories"]),
+        required_phrases=[r["phrase"] for r in card["required_phrases"]],
+        version=card["version"],
+        target_score=card["target_score"],
+        labels={key: c["label"] for key, c in card["categories"].items()},
+        phases=card["phases"],
     )
