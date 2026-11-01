@@ -23,7 +23,9 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 // \b only knows ASCII, so it can't see the edge of a name like Émile or Zoë
 const NOT_BEFORE = '(?<![\\p{L}\\p{N}_])'
 const NOT_AFTER = '(?![\\p{L}\\p{N}_])'
-const word = (s: string, flags = 'giu') => new RegExp(`${NOT_BEFORE}${escapeRe(s.normalize('NFC'))}${NOT_AFTER}`, flags)
+// the same on both sides, or O’Brien in the record wouldn't match O'Brien in the text
+const norm = (s: string) => s.normalize('NFC').replace(/[‘’]/g, "'")
+const word = (s: string, flags = 'giu') => new RegExp(`${NOT_BEFORE}${escapeRe(norm(s))}${NOT_AFTER}`, flags)
 
 function ageInWords(age: number): string | null {
   if (age < 20 || age > 99) return null
@@ -41,12 +43,12 @@ const SPOKEN_YEARS_OLD = new RegExp(`\\b(?:${SPOKEN_TENS})(?:[- ](?:${SPOKEN_UNI
 /** Best effort: this catches the forms a summary uses, and a person should still read what they
  *  paste. It only runs where the customer's name is known; see feedbackText. */
 export function scrub(text: string, call: Pick<CallDetail, 'customer' | 'sale'> & Partial<Pick<CallDetail, 'speakers' | 'agent'>>): string {
-  let out = text.normalize('NFC').replace(/[‘’]/g, "'")
+  let out = norm(text)
   const { first_name: first, last_name: last, age, state } = call.customer ?? {}
 
   if (first && last) out = out.replace(word(`${first} ${last}`), 'the customer')
   if (last) {
-    out = out.replace(new RegExp(`${NOT_BEFORE}(?:Mr|Mrs|Ms|Miss|Dr)\\.?\\s+${escapeRe(last.normalize('NFC'))}${NOT_AFTER}`, 'giu'), 'the customer')
+    out = out.replace(new RegExp(`${NOT_BEFORE}(?:Mr|Mrs|Ms|Miss|Dr)\\.?\\s+${escapeRe(norm(last))}${NOT_AFTER}`, 'giu'), 'the customer')
   }
   for (const name of [last, first]) if (name) out = out.replace(word(name), 'the customer')
   // whoever else the transcript shows as a speaker, other than the agent
@@ -86,8 +88,9 @@ export function scrub(text: string, call: Pick<CallDetail, 'customer' | 'sale'> 
     .replace(SPOKEN_LARGE, AMOUNT)
     .replace(/\b\d{1,3}(?:,\d{3})+\b/g, AMOUNT)
     .replace(/\b\d+(?:\.\d+)?\s?[kK]\b/g, AMOUNT)
+    .replace(/\b\d+\.\d{2}\b/g, AMOUNT)   // a figure with cents, with or without the $
   for (const n of [call.sale?.coverage_usd, call.sale?.premium_monthly_usd]) {
-    if (n != null) out = out.replace(new RegExp(`\\b${Math.round(n)}\\b`, 'g'), AMOUNT)
+    if (n != null) out = out.replace(new RegExp(`\\b${Math.trunc(n)}(?:\\.\\d+)?\\b|\\b${Math.round(n)}\\b`, 'g'), AMOUNT)
   }
   return out.replace(/[ \t]{2,}/g, ' ').replace(/\s+([,.;])/g, '$1').replace(/,(\s*,)+/g, ',').trim()
 }
@@ -103,20 +106,22 @@ export function agentNameOf(call: Pick<CallDetail, 'agent' | 'suggested_agent'>)
 export const canCopyFeedback = (call: Pick<CallDetail, 'score' | 'scored_v2'>) => !!call.score && call.scored_v2
 
 /** Agent, date, score, summary, work on next. The call id isn't included: it holds a phone number.
- *  With no customer name to look for, a summary can't be made safe, so it's left out (fail closed). */
+ *  With no customer name to look for, free text can't be made safe, so all of it is left out. */
 export function feedbackText(call: CallDetail): string {
   const agent = agentNameOf(call)
   const work = call.score?.work_on_next
-  const nameKnown = !!call.customer?.first_name
   const lines = [
     agent ? `Feedback for ${agent}` : 'Call feedback',
     `${dateOnly(call.uploaded_at)} · Score ${call.overall_score ?? '—'} / 100`,
     '',
-    nameKnown ? scrub(call.score?.summary ?? '', call) : 'Summary left out: the customer’s name wasn’t identified, so it couldn’t be checked.',
   ]
+  if (!call.customer?.first_name) {
+    lines.push('Summary and work on next left out: the customer’s name wasn’t identified, so they couldn’t be checked.')
+    return lines.join('\n')
+  }
+  lines.push(scrub(call.score?.summary ?? '', call))
   if (work?.items.length) {
-    lines.push('', 'Work on next')
-    if (nameKnown) lines.push(scrub(work.intro, call))
+    lines.push('', 'Work on next', scrub(work.intro, call))
     work.items.forEach((item, i) => lines.push(`${i + 1}. ${scrub(item, call)}`))
   }
   return lines.join('\n')

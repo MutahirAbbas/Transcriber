@@ -36,6 +36,8 @@ describe('scrub', () => {
     ['He is 80 years of age.', 'He is [age].'],
     ['A sixty-two year old man.', 'A man.'],
     ['He lives in MD now.', 'He lives in their state now.'],
+    ['A premium of 113.50 monthly.', 'A premium of [amount] monthly.'],
+    ['Paying 87.25 now.', 'Paying [amount] now.'],
   ])('%s', (input, expected) => {
     expect(scrub(input, people)).toBe(expected)
   })
@@ -54,6 +56,23 @@ describe('scrub', () => {
     expect(scrub('Then Émile Zoë spoke. Émile agreed, and Mrs. Zoë left.', accented)).toBe(
       'Then the customer spoke. the customer agreed, and the customer left.')
     expect(scrub('Émiles is someone else.', accented)).toBe('Émiles is someone else.')
+  })
+
+  it('matches a name however its apostrophe is written, on either side', () => {
+    for (const recorded of ['O’Brien', "O'Brien"]) {
+      const c = { customer: { first_name: 'Pat', last_name: recorded, age: null, state: null }, sale: null }
+      expect(scrub("Then O’Brien and Mr. O'Brien left.", c), recorded).toBe('Then the customer and the customer left.')
+    }
+  })
+
+  it('catches a recorded sale amount with cents, exact or rounded', () => {
+    const sale = { customer: null, sale: { coverage_usd: null, premium_monthly_usd: 113.5, carrier: null, plan_type: 'level' } }
+    expect(scrub('Pays 113.5 a month, call it 114.', sale)).toBe('Pays [amount] a month, call it [amount].')
+    expect(scrub('Pays 113.50 a month.', sale)).toBe('Pays [amount] a month.')
+  })
+
+  it('leaves timestamps alone', () => {
+    expect(scrub('See 33:33 and 01:30.', people)).toBe('See 33:33 and 01:30.')
   })
 
   it('treats a state given as an abbreviation the same as its name', () => {
@@ -108,15 +127,14 @@ describe('feedbackText', () => {
     }
   })
 
-  it('leaves the summary and intro out when the customer’s name is unknown, rather than risk it', () => {
+  it('leaves all the free text out when the customer’s name is unknown, rather than risk it', () => {
     const anon = feedbackText({ ...call, agent: null, suggested_agent: null, customer: null, sale: null })
     expect(anon.split('\n')[0]).toBe('Call feedback')
-    expect(anon).toContain('Summary left out')
-    expect(anon).not.toContain('Gary')
-    expect(anon).not.toContain('Maryland')
-    expect(anon).not.toContain('needed care')
+    expect(anon).toContain('left out')
+    for (const secret of ['Gary', 'Jones', 'Maryland', 'needed care', 'budget', 'Aflac']) expect(anon, secret).not.toContain(secret)
     const noName = feedbackText({ ...call, customer: { first_name: null, last_name: 'Jones', age: 75, state: null } })
-    expect(noName).toContain('Summary left out')
+    expect(noName).toContain('left out')
+    expect(noName).not.toContain('Jones')
   })
 
   it('isn’t offered for an old-format score, which has no customer record to scrub against', () => {
