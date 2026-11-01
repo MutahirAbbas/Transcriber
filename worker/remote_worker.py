@@ -28,6 +28,7 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from types import FrameType
@@ -57,6 +58,10 @@ LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1")
 class Stop(BaseException):
     """SIGTERM / SIGINT arrived while a job was running. Not an Exception, so nothing it
     interrupts (a model, the never-fail wrapper round diarization) can swallow it."""
+
+
+class Cancelled(BaseException):
+    """Someone cancelled the running call. Same reasoning as Stop."""
 
 
 class LeaseLost(Exception):
@@ -114,6 +119,8 @@ class RemoteWorker:
         self.cfg, self.client, self.stop = cfg, client, stop
         self.model = make_transcriber(cfg.transcriber, False).model.split("/")[-1]
         self.busy = False   # a job is running: SIGTERM interrupts it (see main)
+        self.cancelled = threading.Event()   # checked between stages
+        self.interrupt: Callable[[], None] = lambda: None   # stops the model mid-run (see main)
 
     # ---- loop --------------------------------------------------------------------------
 
@@ -160,6 +167,7 @@ class RemoteWorker:
         t0 = time.monotonic()
         heartbeat = _Heartbeat(self, call_id, expected_s=duration * rtf)
         outcome = "ok"
+        self.cancelled.clear()
         self.busy = True
         try:
             with tempfile.TemporaryDirectory(prefix="call-worker-") as td:   # removed on the way out
@@ -168,10 +176,14 @@ class RemoteWorker:
                 self.download(call_id, audio)
                 res = make_transcriber(self.cfg.transcriber, stereo).transcribe(
                     audio, call_id, keywords=job.get("keywords") or None)
+                self._check_cancelled()
                 res = separate_speakers(res, audio, stereo, on_start=heartbeat.separating)
                 waveform = compute_waveform(audio)
                 heartbeat.stop()
+                self._check_cancelled()
                 self.post_transcript(call_id, {**_without_words(res.to_dict()), "waveform": waveform})
+        except Cancelled:
+            outcome = "cancelled"
         except Stop:
             outcome = "stopped"
             self.fail(call_id, "Transcriber was stopped mid-job")
@@ -185,6 +197,14 @@ class RemoteWorker:
             heartbeat.stop()
             log.info("call=%s audio=%ds took=%ds outcome=%s", call_id, round(duration), round(time.monotonic() - t0), outcome)
         return outcome
+
+    def _check_cancelled(self) -> None:
+        if self.cancelled.is_set():
+            raise Cancelled
+
+    def cancel_running(self) -> None:
+        self.cancelled.set()
+        self.interrupt()
 
     def _job(self, call_id: str, what: str) -> str:
         return f"/api/worker/jobs/{quote(call_id, safe='')}/{what}"
@@ -202,13 +222,19 @@ class RemoteWorker:
         r = self.client.post(self._job(call_id, "transcript"), json=transcript)
         if r.status_code == 409:
             raise LeaseLost
+        if r.status_code == 404:    # deleted while we worked
+            raise Cancelled
         r.raise_for_status()
 
-    def heartbeat(self, call_id: str, progress: float, stage: str = "transcribing") -> None:
+    def heartbeat(self, call_id: str, progress: float, stage: str = "transcribing") -> bool:
+        """Renew the lease. True means stop: the call was cancelled or deleted."""
         r = self.client.post(self._job(call_id, "heartbeat"), json={"stage": stage, "progress": progress})
         if r.status_code == 409:
             raise LeaseLost
+        if r.status_code == 404:
+            return True
         r.raise_for_status()
+        return bool(r.json().get("cancel"))
 
     def fail(self, call_id: str, error: str) -> None:
         try:
@@ -236,7 +262,8 @@ class _Heartbeat:
         """Tell the server now rather than at the next beat, so the UI shows the new stage."""
         self.stage = "separating"
         try:
-            self.worker.heartbeat(self.call_id, self._progress(), self.stage)
+            if self.worker.heartbeat(self.call_id, self._progress(), self.stage):
+                raise Cancelled
         except (LeaseLost, httpx.HTTPError) as e:   # the regular beat will try again
             log.warning("stage update for %s failed: %s", self.call_id, type(e).__name__)
 
@@ -246,7 +273,10 @@ class _Heartbeat:
         def beat() -> None:
             while not self._stop.wait(HEARTBEAT_S):
                 try:
-                    self.worker.heartbeat(self.call_id, self._progress(), self.stage)
+                    if self.worker.heartbeat(self.call_id, self._progress(), self.stage):
+                        log.info("call=%s cancelled; stopping", self.call_id)
+                        self.worker.cancel_running()
+                        return
                 except LeaseLost:
                     log.warning("call=%s lease lost; finishing anyway", self.call_id)
                     return
@@ -283,6 +313,11 @@ def main() -> int:
         headers={"Authorization": f"Bearer {cfg.token}", "X-Worker-Id": quote(cfg.worker_id, safe="")},
     )
     worker = RemoteWorker(cfg, client, stop)
+    worker.interrupt = lambda: os.kill(os.getpid(), signal.SIGUSR1)
+
+    def on_cancel(_signum: int, _frame: FrameType | None) -> None:
+        if worker.busy:
+            raise Cancelled   # same route as SIGTERM: interrupts the model in the main thread
 
     def on_signal(signum: int, _frame: FrameType | None) -> None:
         log.info("received %s, stopping", signal.Signals(signum).name)
@@ -292,6 +327,7 @@ def main() -> int:
 
     signal.signal(signal.SIGTERM, on_signal)
     signal.signal(signal.SIGINT, on_signal)
+    signal.signal(signal.SIGUSR1, on_cancel)
 
     log.info("polling %s every %ds as %r", cfg.server_url, IDLE_SLEEP_S, cfg.worker_id)
     try:

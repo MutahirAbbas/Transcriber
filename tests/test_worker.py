@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 from fastapi import FastAPI
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from api.config import Settings
 from api.models import Agent, Call, CallStatus
@@ -114,14 +114,21 @@ def test_full_job_redacts_scores_and_saves(app: FastAPI, jobs, make_worker, with
     assert json.loads(call.score_json)["summary"] == "Customer read out [PHONE]."
 
 
-def test_agent_falls_back_to_scorer_agent_name(app: FastAPI, jobs, make_worker, with_audio) -> None:
+def test_a_name_heard_on_the_call_only_assigns_an_existing_agent(app: FastAPI, jobs, make_worker, with_audio) -> None:
     with_audio("c1")
+    with_audio("c2")
     make_worker()
     jobs.put(("c1", "full"))
     jobs.join()
     with Session(app.state.engine) as s:
-        agent = s.get(Agent, _get(app, "c1").agent_id)
-    assert (agent.name, agent.slug) == ("Dana Reyes", "dana-reyes")
+        assert _get(app, "c1").agent_id is None and s.exec(select(Agent)).first() is None   # a suggestion, no new agent
+        agent = Agent(name="D. Reyes", slug="d-reyes", aliases='["Dana Reyes"]')
+        s.add(agent)
+        s.commit()
+        agent_id = agent.id
+    jobs.put(("c2", "full"))
+    jobs.join()
+    assert _get(app, "c2").agent_id == agent_id
 
 
 def test_failure_marks_error_and_next_job_runs(app: FastAPI, jobs, make_worker, with_audio) -> None:

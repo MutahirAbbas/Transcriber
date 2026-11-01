@@ -100,7 +100,7 @@ def create_app(
                             None if settings.remote else process_call, make_scorer, remote=settings.remote)
             worker.start()
             if settings.remote:
-                reaper = LeaseReaper(app.state.engine)
+                reaper = LeaseReaper(app.state.engine, uploads_dir=settings.uploads_dir)
                 reaper.start()
         app.state.worker = worker
         yield

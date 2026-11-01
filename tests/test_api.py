@@ -35,7 +35,7 @@ def test_upload_probes_saves_and_enqueues(client: TestClient, app: FastAPI, make
     a, b = r.json()
     assert a["status"] == "queued" and a["stereo"] is False and round(a["duration_s"]) == 2
     assert b["stereo"] is True
-    assert a["agent"] == "Jblake" and b["agent"] == "Kmonroe"
+    assert a["agent"]["name"] == "Jblake" and b["agent"]["name"] == "Kmonroe"
     assert a["id"].startswith("20261021-141502_jblake-")
     assert (settings.uploads_dir / f"{a['id']}.wav").exists()
     assert _drain(app) == [(a["id"], "full"), (b["id"], "full")]
@@ -47,7 +47,7 @@ def test_upload_assigns_chosen_agent(client: TestClient, app: FastAPI, make_wav)
         s.commit()
         agent_id = agent.id
     r = _upload(client, make_wav("x_jblake.wav"), agent=str(agent_id))
-    assert r.json()[0]["agent"] == "Luis Ortega"
+    assert r.json()[0]["agent"]["name"] == "Luis Ortega"
 
 
 def test_upload_with_phone_number_filename_leaves_agent_for_scorer(client: TestClient, app: FastAPI, make_wav) -> None:
@@ -123,7 +123,7 @@ def test_list_sorted_newest_first_with_derived_fields(client: TestClient, app: F
     assert body["total"] == 4
     assert [c["id"] for c in body["items"]] == ["c-processing", "c-callback", "c-nosale", "c-sale"]
     nosale = body["items"][2]
-    assert (nosale["overall_score"], nosale["outcome"], nosale["flag_count"], nosale["agent"]) == (
+    assert (nosale["overall_score"], nosale["outcome"], nosale["flag_count"], nosale["agent"]["name"]) == (
         41, "no_sale", 2, "Keisha Monroe")
     assert nosale["weakest_category"] == "objection_handling"
 
@@ -161,7 +161,7 @@ def test_csv_export_uses_filters(client: TestClient, app: FastAPI, add_call) -> 
     lines = r.text.strip().splitlines()
     assert lines[0] == "Call,Uploaded,Agent,Outcome,Length,Score,Flags,Weakest,Status"
     assert len(lines) == 2 and lines[1].startswith("c-nosale,")
-    assert ",Keisha Monroe,No sale,02:00,41,2,Objection handling,done" in lines[1]
+    assert ",Keisha Monroe,No sale,02:00,41,2,Objections,done" in lines[1]
 
 
 def test_in_progress_and_stats(client: TestClient, app: FastAPI, add_call) -> None:
@@ -169,15 +169,17 @@ def test_in_progress_and_stats(client: TestClient, app: FastAPI, add_call) -> No
     add_call("c-old-error", status=CallStatus.error, uploaded_at=utcnow() - timedelta(hours=3))
     assert [c["id"] for c in client.get("/api/calls/in-progress").json()] == ["c-processing"]
     stats = client.get("/api/stats").json()
-    assert stats == {"calls_scored": 3, "avg_score": 64, "compliance_flags": 2,
-                     "weakest_category": "objection_handling"}
+    assert stats == {"calls_scored": 3, "avg_score": 64, "compliance_flags": 2, "flagged_calls": 1,
+                     "weakest_category": "objection_handling", "weakest_label": "Objections",
+                     "weakest_avg": stats["weakest_avg"], "in_progress": 1, "target_score": 60}
 
 
 def test_agents_and_settings(client: TestClient, app: FastAPI, add_call) -> None:
     _seed(add_call, app)
     assert [a["name"] for a in client.get("/api/agents").json()] == ["Jerome Blake", "Keisha Monroe"]
-    assert client.get("/api/settings").json() == {
-        "provider": "whisper_local", "model": "whisper-large-v3-turbo", "worker_mode": "local"}
+    settings = client.get("/api/settings").json()
+    assert settings.pop("scorer_model")
+    assert settings == {"provider": "whisper_local", "model": "whisper-large-v3-turbo", "worker_mode": "local"}
 
 
 # ---- one call ----------------------------------------------------------------------

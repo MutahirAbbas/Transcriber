@@ -106,14 +106,20 @@ class HeartbeatIn(BaseModel):
 
 
 @router.post("/jobs/{call_id}/heartbeat")
-def heartbeat(call_id: str, body: HeartbeatIn, session: SessionDep, worker_id: WorkerId) -> dict[str, Any]:
+def heartbeat(
+    call_id: str, body: HeartbeatIn, request: Request, session: SessionDep, worker_id: WorkerId,
+) -> dict[str, Any]:
     call = _leased(session, call_id, worker_id)
+    if call.cancelled_at is not None:   # the worker stops and deletes its copy; nothing more to keep
+        repo.purge_call(session, call, request.app.state.settings.uploads_dir)
+        session.commit()
+        return {"cancel": True}
     call.lease_until = utcnow() + leases.LEASE
     call.status = CallStatus(body.stage)
     call.progress = round(min(body.progress, 0.9), 3)
     session.add(call)
     session.commit()
-    return {"lease_until": call.lease_until.isoformat().replace("+00:00", "Z")}
+    return {"lease_until": call.lease_until.isoformat().replace("+00:00", "Z"), "cancel": False}
 
 
 class WordIn(BaseModel):
@@ -160,6 +166,10 @@ def post_transcript(
         return {"status": "already received"}   # idempotent: a retried post changes nothing
     if not leases.holds_lease(call, worker_id):
         raise HTTPException(409, "This worker doesn't hold the lease on that call")
+    if call.cancelled_at is not None:
+        repo.purge_call(session, call, request.app.state.settings.uploads_dir)
+        session.commit()
+        return {"status": "cancelled"}
     try:
         tx = TranscriptIn.model_validate(payload)
     except ValidationError as e:

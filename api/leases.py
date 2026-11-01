@@ -10,12 +10,14 @@ from __future__ import annotations
 import logging
 import threading
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from sqlalchemy import update
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, col, select
 
+from api import repo
 from api.models import ON_WORKER, Call, CallStatus, WorkerSeen, utcnow
 
 log = logging.getLogger(__name__)
@@ -75,13 +77,16 @@ def release(call: Call, error: str) -> None:
         call.status, call.error = CallStatus.error, f"Transcription failed after {call.attempts} attempts: {error}"
 
 
-def requeue_expired(engine: Engine, now: datetime | None = None) -> int:
+def requeue_expired(engine: Engine, now: datetime | None = None, uploads_dir: Path | None = None) -> int:
     now = now or utcnow()
     with Session(engine) as s:
         expired = s.exec(
             select(Call).where(col(Call.status).in_(ON_WORKER), col(Call.lease_until) < now)
         ).all()
         for call in expired:
+            if call.cancelled_at is not None:   # its worker never came back to hear about the cancel
+                repo.purge_call(s, call, uploads_dir)
+                continue
             release(call, "Transcriber stopped responding")
             s.add(call)
         s.commit()
@@ -117,8 +122,8 @@ def worker_status(engine: Engine, now: datetime | None = None) -> dict:
 class LeaseReaper:
     """Background check every minute: expired leases go back to the queue."""
 
-    def __init__(self, engine: Engine, every_s: float = REAP_EVERY_S) -> None:
-        self.engine, self.every_s = engine, every_s
+    def __init__(self, engine: Engine, every_s: float = REAP_EVERY_S, uploads_dir: Path | None = None) -> None:
+        self.engine, self.every_s, self.uploads_dir = engine, every_s, uploads_dir
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, name="lease-reaper", daemon=True)
 
@@ -132,6 +137,6 @@ class LeaseReaper:
     def _run(self) -> None:
         while not self._stop.wait(self.every_s):
             try:
-                requeue_expired(self.engine)
+                requeue_expired(self.engine, uploads_dir=self.uploads_dir)
             except Exception:
                 log.exception("lease check failed")

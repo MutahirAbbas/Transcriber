@@ -30,6 +30,7 @@ class Agent(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
     slug: str = Field(index=True, unique=True)
+    aliases: str | None = None             # JSON list: other names this agent goes by on calls
 
 
 class Call(SQLModel, table=True):
@@ -55,6 +56,15 @@ class Call(SQLModel, table=True):
     worker_id: str | None = None
     speaker_source: str | None = None      # stereo | diarized | provider | none
     waveform: str | None = None            # JSON: 400 peaks, 0–1
+    # From the latest good score, unpacked for filters and the detail page (see repo.apply_score)
+    overall_score: int | None = None       # computed in code, never the model's figure
+    findings: str | None = None            # JSON list
+    phases: str | None = None              # JSON list
+    customer: str | None = None            # JSON object
+    sale: str | None = None                # JSON object
+    scorer_version: str | None = None
+    score_history: str | None = None       # JSON list: earlier scores, oldest first
+    cancelled_at: datetime | None = None   # asked to stop; the row goes when the job does
 
 
 class User(SQLModel, table=True):

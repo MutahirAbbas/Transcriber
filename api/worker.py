@@ -24,7 +24,7 @@ from sqlmodel import Session, col, select
 
 from api import derive, repo
 from api.media import find_audio
-from api.models import ON_WORKER, TERMINAL, Call, CallStatus, utcnow
+from api.models import ON_WORKER, TERMINAL, Call, CallStatus
 from api.redaction import redact_result, redact_score
 from transcribers import diarize
 from transcribers.base import Segment, TranscriptResult
@@ -37,6 +37,10 @@ MAX_TRANSCRIBE_PROGRESS = 0.9
 SCORING_PROGRESS = 0.95
 
 Job = tuple[str, str]
+
+
+class CallCancelled(Exception):
+    """Someone cancelled this call while it was running."""
 
 
 class Scorer(Protocol):
@@ -93,7 +97,10 @@ class Worker:
             ).all()
             jobs: list[Job] = []
             for call in rows:
-                if call.status == CallStatus.scoring and call.transcript_json:
+                if call.cancelled_at is not None:
+                    if call.status not in ON_WORKER or not self.remote:   # else its lease expiry removes it
+                        repo.purge_call(s, call, self.uploads_dir)
+                elif call.status == CallStatus.scoring and call.transcript_json:
                     jobs.append((call.id, "rescore"))
                 elif self.remote:
                     if call.status == CallStatus.scoring:   # scoring with no transcript: needs one first
@@ -122,9 +129,12 @@ class Worker:
                         self._rescore(call_id)
                     else:
                         self._full(call_id)
+                except CallCancelled:
+                    self._remove_cancelled(call_id)
                 except Exception as exc:
                     log.exception("call %s failed (%s)", call_id, mode)
-                    self._update(call_id, status=CallStatus.error, error=str(exc) or type(exc).__name__)
+                    if not self._remove_cancelled(call_id):
+                        self._update(call_id, status=CallStatus.error, error=str(exc) or type(exc).__name__)
             finally:
                 self.jobs.task_done()
 
@@ -151,6 +161,8 @@ class Worker:
         ticker = _ProgressTicker(self, call_id, duration_s, self.expected_rtf(stereo))
 
         def on_status(stage: str) -> None:
+            if self._cancelled(call_id):    # the model can't be stopped, but the next stage can
+                raise CallCancelled
             if stage == "transcribing":
                 self._update(call_id, status=CallStatus.transcribing, progress=0.0, error=None)
                 ticker.start()
@@ -177,6 +189,8 @@ class Worker:
             transcript = derive.parse_json(call.transcript_json)
         if transcript is None:
             raise ValueError("No transcript to score")
+        if self._cancelled(call_id):
+            raise CallCancelled
         self._update(call_id, status=CallStatus.scoring, progress=SCORING_PROGRESS, error=None)
         res = TranscriptResult(
             provider=transcript["provider"], model=transcript["model"], call_id=transcript.get("call_id", call_id),
@@ -191,6 +205,10 @@ class Worker:
             call = s.get(Call, call_id)
             if call is None:       # deleted mid-job
                 return
+            if call.cancelled_at is not None:
+                repo.purge_call(s, call, self.uploads_dir)
+                s.commit()
+                return
             call.transcript_json = json.dumps(transcript, ensure_ascii=False)
             call.provider, call.model = transcript.get("provider"), transcript.get("model")
             call.speaker_source = transcript.get("speaker_source") or call.speaker_source
@@ -200,15 +218,25 @@ class Worker:
                 # keep the transcript (and any earlier score) so Re-score can retry
                 call.status, call.error = CallStatus.error, f"Scoring failed: {score.get('reason', 'unknown')}"
             else:
-                score = redact_score(score)   # the scorer only saw redacted text; this is belt and braces
-                call.score_json = json.dumps(score, ensure_ascii=False)
-                call.scored_at = utcnow()
+                # the scorer only saw redacted text; this is belt and braces
+                repo.apply_score(s, call, redact_score(score))
                 call.status, call.progress, call.error = CallStatus.done, 1.0, None
-                if call.agent_id is None and isinstance(score.get("agent_name"), str):
-                    agent = repo.agent_for_name(s, score["agent_name"])
-                    call.agent_id = agent.id if agent else None
             s.add(call)
             s.commit()
+
+    def _cancelled(self, call_id: str) -> bool:
+        with Session(self.engine) as s:
+            call = s.get(Call, call_id)
+            return call is not None and call.cancelled_at is not None
+
+    def _remove_cancelled(self, call_id: str) -> bool:
+        with Session(self.engine) as s:
+            call = s.get(Call, call_id)
+            if call is None or call.cancelled_at is None:
+                return False
+            repo.purge_call(s, call, self.uploads_dir)
+            s.commit()
+            return True
 
     # ---- progress --------------------------------------------------------------------
 

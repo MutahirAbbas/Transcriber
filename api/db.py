@@ -24,7 +24,10 @@ def make_engine(db_path: Path) -> Engine:
         cur.close()
 
     SQLModel.metadata.create_all(engine)
-    add_missing_columns(engine)
+    if "calls.overall_score" in add_missing_columns(engine):
+        with engine.begin() as conn:   # one time: calls scored before the column existed
+            conn.execute(text("UPDATE calls SET overall_score = CAST(ROUND(json_extract(score_json, '$.overall_score')) AS INTEGER) "
+                              "WHERE score_json IS NOT NULL AND json_valid(score_json)"))
     return engine
 
 

@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import csv
 import io
+from collections.abc import Sequence
 from datetime import timedelta
 from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
+from pydantic import BaseModel
 from sqlmodel import Session
 
-from api import derive, repo
+from api import derive, leases, repo
 from api.db import get_session
 from api.media import (
     AUDIO_TYPES, MAX_DURATION_S, MAX_UPLOAD_BYTES, UnreadableAudio, UploadTooLarge, agent_slug_from_filename,
@@ -24,7 +26,7 @@ MAX_FILES = 20
 ERRORS_VISIBLE_FOR = timedelta(hours=1)
 
 SessionDep = Annotated[Session, Depends(get_session)]
-FilterParam = Annotated[str, Query(alias="filter", pattern="^(all|sales|flagged|below60)$")]
+FilterParam = Annotated[str, Query(alias="filter", pattern=f"^({'|'.join(repo.FILTERS)})$")]
 
 
 def _order(request: Request) -> list[str]:
@@ -33,9 +35,23 @@ def _order(request: Request) -> list[str]:
 
 def _get_call(session: Session, call_id: str) -> Call:
     call = session.get(Call, call_id)
-    if call is None:
+    if call is None or call.cancelled_at is not None:
         raise HTTPException(404, "Call not found")
     return call
+
+
+def _worker_online(request: Request) -> bool | None:
+    """None in local mode, where there's no separate transcriber to be offline."""
+    return leases.worker_status(request.app.state.engine)["online"] if request.app.state.settings.remote else None
+
+
+def _summaries(request: Request, session: Session, rows: Sequence[tuple[Call, str | None]]) -> list[dict[str, Any]]:
+    card = request.app.state.scorecard
+    timing = repo.timing(session, request.app.state.settings.provider)
+    online = _worker_online(request)
+    return [derive.call_summary(c, name, card.categories, labels=card.labels, worker_online=online,
+                                eta_s=repo.eta_s(c, timing))
+            for c, name in rows]
 
 
 # ---- upload ------------------------------------------------------------------------
@@ -110,7 +126,7 @@ def upload_calls(
         for row in created:
             if row.status == CallStatus.queued:
                 request.app.state.jobs.put((row.id, "full"))
-    return [derive.call_summary(r, repo.agent_name(session, r.agent_id), _order(request)) for r in created]
+    return _summaries(request, session, [(r, repo.agent_name(session, r.agent_id)) for r in created])
 
 
 # ---- list / export -----------------------------------------------------------------
@@ -124,8 +140,9 @@ def list_calls(
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=200)] = 25,
 ) -> dict[str, Any]:
-    rows, total = repo.list_calls(session, filter_, q, offset=(page - 1) * page_size, limit=page_size)
-    return {"items": [derive.call_summary(c, name, _order(request)) for c, name in rows], "total": total}
+    rows, total = repo.list_calls(session, filter_, q, offset=(page - 1) * page_size, limit=page_size,
+                                  target=request.app.state.scorecard.target_score)
+    return {"items": _summaries(request, session, rows), "total": total}
 
 
 def _csv_cell(value: Any) -> Any:
@@ -137,12 +154,13 @@ def _csv_cell(value: Any) -> Any:
 
 @router.get("/calls.csv")
 def export_csv(request: Request, session: SessionDep, filter_: FilterParam = "all", q: str | None = None) -> Response:
-    rows, _ = repo.list_calls(session, filter_, q)
+    rows, _ = repo.list_calls(session, filter_, q, target=request.app.state.scorecard.target_score)
+    card = request.app.state.scorecard
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["Call", "Uploaded", "Agent", "Outcome", "Length", "Score", "Flags", "Weakest", "Status"])
     for call, name in rows:
-        s = derive.call_summary(call, name, _order(request))
+        s = derive.call_summary(call, name, card.categories, labels=card.labels)
         w.writerow([_csv_cell(v) for v in (
             call.id,
             call.uploaded_at.astimezone().strftime("%Y-%m-%d %H:%M"),
@@ -151,7 +169,7 @@ def export_csv(request: Request, session: SessionDep, filter_: FilterParam = "al
             derive.fmt_ts(call.duration_s) if call.duration_s is not None else "",
             "" if s["overall_score"] is None else s["overall_score"],
             s["flag_count"],
-            derive.category_label(s["weakest_category"]),
+            s["weakest_label"] or "",
             call.status.value,
         )])
     return Response(buf.getvalue(), media_type="text/csv",
@@ -161,7 +179,7 @@ def export_csv(request: Request, session: SessionDep, filter_: FilterParam = "al
 @router.get("/calls/in-progress")
 def calls_in_progress(request: Request, session: SessionDep) -> list[dict[str, Any]]:
     rows = repo.in_progress(session, errors_since=utcnow() - ERRORS_VISIBLE_FOR)
-    return [derive.call_summary(c, name, _order(request)) for c, name in rows]
+    return _summaries(request, session, rows)
 
 
 # ---- one call ----------------------------------------------------------------------
@@ -172,13 +190,32 @@ def get_call(call_id: str, request: Request, session: SessionDep) -> dict[str, A
     transcript = derive.parse_json(call.transcript_json)
     score = derive.parse_json(call.score_json)
     card = request.app.state.scorecard
+    name = repo.agent_name(session, call.agent_id)
+    prev_id, next_id = repo.neighbours(session, call.id)
     return {
-        **derive.call_summary(call, repo.agent_name(session, call.agent_id), card.categories),
+        **_summaries(request, session, [(call, name)])[0],
         "transcript": transcript,
         "score": score,
+        "scored_v2": derive.is_v2(score),
         "speaker_map": derive.speaker_map(score, transcript),
+        "speakers": derive.speakers(score, transcript, name),
+        "speaker_source": call.speaker_source,
+        "waveform": derive.parse_json(call.waveform),
+        "findings": derive.parse_json(call.findings),
+        "phases": derive.parse_json(call.phases),
+        "customer": derive.parse_json(call.customer),
+        "sale": derive.parse_json(call.sale),
+        "scorer_version": call.scorer_version,
+        "score_history": derive.parse_json(call.score_history) or [],
+        "prev_id": prev_id,
+        "next_id": next_id,
+        "agent_average": repo.agent_average(session, call.agent_id),
+        "worker_id": call.worker_id,
         "rtf": derive.realtime_factor(transcript),
-        "scorecard": {"categories": card.categories, "required_phrases": card.required_phrases},
+        "scorecard": {
+            "version": card.version, "categories": card.categories, "labels": card.labels,
+            "required_phrases": card.required_phrases, "phases": card.phases, "target_score": card.target_score,
+        },
     }
 
 
@@ -199,7 +236,8 @@ def get_transcript_txt(call_id: str, session: SessionDep) -> PlainTextResponse:
     transcript = derive.parse_json(call.transcript_json)
     if transcript is None:
         raise HTTPException(409, "No transcript yet")
-    lines = derive.transcript_lines(transcript, derive.speaker_map(derive.parse_json(call.score_json), transcript))
+    names = derive.speakers(derive.parse_json(call.score_json), transcript, repo.agent_name(session, call.agent_id))
+    lines = derive.transcript_lines(transcript, names)
     return PlainTextResponse("\n".join(lines) + "\n",
                              headers={"Content-Disposition": f'attachment; filename="{call.id}.txt"'})
 
@@ -215,14 +253,44 @@ def rescore(call_id: str, request: Request, session: SessionDep) -> dict[str, An
     session.add(call)
     session.commit()
     request.app.state.jobs.put((call.id, "rescore"))
-    return derive.call_summary(call, repo.agent_name(session, call.agent_id), _order(request))
+    return _summaries(request, session, [(call, repo.agent_name(session, call.agent_id))])[0]
+
+
+class AssignIn(BaseModel):
+    agent_id: int | None      # null takes the call back to unassigned
+
+
+@router.patch("/calls/{call_id}")
+def assign_agent(call_id: str, body: AssignIn, request: Request, session: SessionDep) -> dict[str, Any]:
+    call = _get_call(session, call_id)
+    if body.agent_id is not None and session.get(Agent, body.agent_id) is None:
+        raise HTTPException(404, "Agent not found")
+    call.agent_id = body.agent_id
+    session.add(call)
+    session.commit()
+    return _summaries(request, session, [(call, repo.agent_name(session, call.agent_id))])[0]
+
+
+@router.post("/calls/{call_id}/cancel")
+def cancel_call(call_id: str, request: Request, session: SessionDep) -> dict[str, str]:
+    """Queued or failed: gone now. Running: hidden now, and removed when its job stops (next
+    heartbeat, next stage, or lease expiry). A call with a score is never removed this way."""
+    call = _get_call(session, call_id)
+    if call.status == CallStatus.done or call.score_json:
+        raise HTTPException(409, "This call already has a score; it can't be cancelled")
+    if call.status in (CallStatus.queued, CallStatus.error):
+        repo.purge_call(session, call, request.app.state.settings.uploads_dir)
+        session.commit()
+        return {"status": "deleted"}
+    call.cancelled_at = utcnow()
+    session.add(call)
+    session.commit()
+    return {"status": "cancelling"}
 
 
 @router.delete("/calls/{call_id}", status_code=204)
 def delete_call(call_id: str, request: Request, session: SessionDep) -> Response:
     call = _get_call(session, call_id)
-    for path in request.app.state.settings.uploads_dir.glob(f"{call.id}.*"):
-        path.unlink(missing_ok=True)
-    session.delete(call)
+    repo.purge_call(session, call, request.app.state.settings.uploads_dir)
     session.commit()
     return Response(status_code=204)

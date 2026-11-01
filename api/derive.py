@@ -6,11 +6,11 @@ agree on what "flagged" or "weakest" means.
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from typing import Any
 
-from api.models import Call
+from api.models import Call, CallStatus
 
 
 OUTCOME_LABELS = {
@@ -43,8 +43,20 @@ def outcome(score: dict | None) -> str | None:
 
 def flag_count(score: dict | None) -> int:
     s = usable_score(score)
-    comp = (s or {}).get("compliance") or {}
+    if s and "findings" in s:
+        return sum(1 for f in s["findings"] if f.get("kind") == "flag")
+    comp = (s or {}).get("compliance") or {}    # scored before scorecard v2
     return len(comp.get("red_flags") or []) + len(comp.get("missing") or [])
+
+
+def critical_count(score: dict | None) -> int:
+    s = usable_score(score)
+    return sum(1 for f in (s or {}).get("findings") or [] if f.get("kind") == "flag" and f.get("severity") == "critical")
+
+
+def is_v2(score: dict | None) -> bool:
+    s = usable_score(score)
+    return bool(s and "findings" in s)
 
 
 def category_scores(score: dict | None) -> dict[str, float]:
@@ -69,8 +81,10 @@ def weakest_category(score: dict | None, order: Sequence[str]) -> str | None:
     return lowest_category(category_scores(score), order)
 
 
-def category_label(cat: str | None) -> str:
-    return cat.replace("_", " ").capitalize() if cat else ""
+def category_label(cat: str | None, labels: Mapping[str, str] | None = None) -> str:
+    if not cat:
+        return ""
+    return (labels or {}).get(cat) or cat.replace("_", " ").capitalize()
 
 
 def speaker_map(score: dict | None, transcript: dict | None) -> dict[str, str]:
@@ -81,6 +95,26 @@ def speaker_map(score: dict | None, transcript: dict | None) -> dict[str, str]:
         return {}
     labels = {seg.get("speaker") for seg in (transcript or {}).get("segments", []) if seg.get("speaker")}
     return {label: ("Agent" if label == agent else "Customer") for label in labels | {agent}}
+
+
+def speakers(score: dict | None, transcript: dict | None, agent_name: str | None) -> dict[str, str]:
+    """Speaker label → name to show: the agent's name and the customer's first name when known,
+    else Agent / Customer, else Speaker 1, 2… when nobody has worked out who's who."""
+    labels = sorted({seg.get("speaker") for seg in (transcript or {}).get("segments", []) if seg.get("speaker")})
+    s = usable_score(score)
+    agent = s.get("agent_speaker") if s else None
+    if not agent:
+        return {label: f"Speaker {i}" for i, label in enumerate(labels, 1)}
+    agent_shown = agent_name or s.get("agent_name") or "Agent"
+    customer_shown = (s.get("customer") or {}).get("first_name") or "Customer"
+    return {label: agent_shown if label == agent else customer_shown for label in {*labels, agent}}
+
+
+def stage(call: Call, worker_online: bool | None) -> str:
+    """queued, waiting (queued with the remote transcriber offline), or the status itself."""
+    if call.status == CallStatus.queued and worker_online is False:
+        return "waiting"
+    return call.status.value
 
 
 def realtime_factor(transcript: dict | None) -> float | None:
@@ -99,26 +133,37 @@ def iso(dt: datetime | None) -> str | None:
     return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def call_summary(call: Call, agent_name: str | None, order: Sequence[str]) -> dict[str, Any]:
+def call_summary(
+    call: Call, agent_name: str | None, order: Sequence[str],
+    *, labels: Mapping[str, str] | None = None, worker_online: bool | None = None, eta_s: int | None = None,
+) -> dict[str, Any]:
     score = parse_json(call.score_json)
+    weakest = weakest_category(score, order)
+    usable = usable_score(score)
     return {
         "id": call.id,
         "filename": call.filename,
         "agent_id": call.agent_id,
-        "agent": agent_name,
+        "agent": {"id": call.agent_id, "name": agent_name} if call.agent_id is not None and agent_name else None,
+        # the name the scorer heard, offered first when someone assigns this call
+        "suggested_agent": (usable or {}).get("agent_name") if call.agent_id is None else None,
         "uploaded_at": iso(call.uploaded_at),
         "duration_s": call.duration_s,
         "stereo": call.stereo,
         "status": call.status.value,
+        "stage": stage(call, worker_online),
         "progress": call.progress,
+        "eta_s": eta_s,
         "error": call.error,
         "provider": call.provider,
         "model": call.model,
         "scored_at": iso(call.scored_at),
-        "overall_score": overall_score(score),
+        "overall_score": call.overall_score if call.overall_score is not None else overall_score(score),
         "outcome": outcome(score),
         "flag_count": flag_count(score),
-        "weakest_category": weakest_category(score, order),
+        "critical_count": critical_count(score),
+        "weakest_category": weakest,
+        "weakest_label": category_label(weakest, labels) or None,
     }
 
 

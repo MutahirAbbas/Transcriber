@@ -135,7 +135,7 @@ def test_remote_call_end_to_end(live_remote: tuple[TestClient, FastAPI], make_wa
 
     _wait_for(lambda: _status(app, call_id) == CallStatus.done)    # scored on the server
     detail = client.get(f"/api/calls/{call_id}").json()
-    assert detail["overall_score"] == 72 and detail["agent"] == "Jblake"
+    assert detail["overall_score"] == 72 and detail["agent"]["name"] == "Jblake"
     assert detail["transcript"]["segments"][0]["text"] == "my social is [SSN], call [PHONE]"
     assert not re.search(r"\d{3}-\d{2}-\d{4}", json.dumps(detail))
     assert client.get("/api/worker/status").json()["online"] is True

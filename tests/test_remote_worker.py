@@ -35,6 +35,7 @@ class FakeTranscriber(Transcriber):
     model = "mlx-community/whisper-large-v3-turbo"
     calls: list[dict[str, Any]] = []
     raise_: BaseException | None = None
+    during: Any = None    # called mid-transcription
 
     def __init__(self, stereo: bool = False) -> None:
         self.stereo = stereo
@@ -42,6 +43,8 @@ class FakeTranscriber(Transcriber):
     def transcribe(self, audio_path: Path, call_id: str, keywords: list[str] | None = None) -> TranscriptResult:
         FakeTranscriber.calls.append({"audio": audio_path.read_bytes(), "path": audio_path, "stereo": self.stereo,
                                       "keywords": keywords})
+        if FakeTranscriber.during:
+            FakeTranscriber.during()
         if FakeTranscriber.raise_:
             raise FakeTranscriber.raise_
         return TranscriptResult(provider="whisper_local", model="whisper-large-v3-turbo", call_id=call_id,
@@ -51,7 +54,7 @@ class FakeTranscriber(Transcriber):
 
 @pytest.fixture(autouse=True)
 def fake_transcriber(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    FakeTranscriber.calls, FakeTranscriber.raise_ = [], None
+    FakeTranscriber.calls, FakeTranscriber.raise_, FakeTranscriber.during = [], None, None
     monkeypatch.setattr(rw, "make_transcriber", lambda provider, stereo: FakeTranscriber(stereo))
     yield
 
@@ -219,3 +222,82 @@ def test_load_config_refuses_the_live_site_in_a_dev_checkout(monkeypatch: pytest
                                         ("../../etc/passwd", "audio.audio"), ("", "audio.audio")])
 def test_local_name(hint: str, name: str) -> None:
     assert rw._local_name(hint) == name
+
+
+def test_cancel_reaches_the_worker_on_its_next_heartbeat(
+    worker: rw.RemoteWorker, app: FastAPI, queued, signed_in_api, settings: Settings, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queued("c1")
+    monkeypatch.setattr(rw, "HEARTBEAT_S", 0.02)
+    job = worker.claim()
+
+    def during() -> None:
+        assert signed_in_api("c1").json() == {"status": "cancelling"}
+        assert worker.cancelled.wait(5)     # as the signal does on the Mac, this is what stops a model
+
+    FakeTranscriber.during = during
+    assert worker.process(job) == "cancelled"
+    assert _get(app, "c1") is None and not (settings.uploads_dir / "c1.mp3").exists()
+    assert not FakeTranscriber.calls[0]["path"].parent.exists()      # temp copy deleted
+    assert app.state.jobs.empty()
+
+
+def test_a_call_deleted_mid_job_stops_the_worker(worker: rw.RemoteWorker, app: FastAPI, queued, monkeypatch) -> None:
+    from api.repo import purge_call
+    queued("c1")
+    monkeypatch.setattr(rw, "HEARTBEAT_S", 0.02)
+    job = worker.claim()
+
+    def during() -> None:
+        with Session(app.state.engine) as s:
+            purge_call(s, s.get(Call, "c1"), None)
+            s.commit()
+        assert worker.cancelled.wait(5)
+
+    FakeTranscriber.during = during
+    assert worker.process(job) == "cancelled"
+
+
+def test_a_cancel_after_the_last_heartbeat_is_caught_at_the_post(
+    worker: rw.RemoteWorker, app: FastAPI, queued, signed_in_api, settings: Settings,
+) -> None:
+    queued("c1")
+    job = worker.claim()
+    FakeTranscriber.during = lambda: signed_in_api("c1")
+    assert worker.process(job) == "ok"     # it heard nothing, so it posted, and the server said no thanks
+    assert _get(app, "c1") is None and not (settings.uploads_dir / "c1.mp3").exists() and app.state.jobs.empty()
+
+
+def test_separation_stage_reaches_the_server_and_words_stay_on_the_mac(
+    worker: rw.RemoteWorker, app: FastAPI, queued, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[CallStatus] = []
+    posted: list[dict[str, Any]] = []
+
+    def separate(res: TranscriptResult, _audio: Path, _stereo: bool, on_start: Any = None) -> TranscriptResult:
+        on_start()
+        seen.append(_get(app, "c1").status)
+        res.segments[0].words = [{"start": 0.0, "end": 1.0, "text": "call"}]
+        return dataclasses.replace(res, speaker_source="diarized", separation_s=2.0)
+
+    real_post = worker.post_transcript
+    monkeypatch.setattr(worker, "post_transcript", lambda cid, t: (posted.append(t), real_post(cid, t))[1])
+    monkeypatch.setattr(rw, "separate_speakers", separate)
+    monkeypatch.setattr(rw, "compute_waveform", lambda _p: [0.0, 1.0])
+    queued("c1")
+    assert worker.process(worker.claim()) == "ok"
+    assert seen == [CallStatus.separating]
+    assert "words" not in posted[0]["segments"][0] and posted[0]["waveform"] == [0.0, 1.0]
+    call = _get(app, "c1")
+    assert call.speaker_source == "diarized" and json.loads(call.waveform) == [0.0, 1.0]
+
+
+@pytest.fixture
+def signed_in_api(app: FastAPI):
+    """The cancel button, from a signed-in browser (remote mode always has sign-in)."""
+    from fastapi.testclient import TestClient
+
+    from tests.conftest import sign_in
+    browser = TestClient(app, base_url="https://testserver")
+    sign_in(browser, app)
+    return lambda call_id: browser.post(f"/api/calls/{call_id}/cancel")
