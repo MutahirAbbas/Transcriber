@@ -63,7 +63,6 @@ export const api = {
     params.set('page_size', String(pageSize))
     return request<CallList>(`/calls?${params}`)
   },
-  inProgress: () => request<CallSummary[]>('/calls/in-progress'),
   getCall: (callId: string) => request<CallDetail>(`/calls/${id(callId)}`),
   upload(files: File[], agent: string) {
     const body = new FormData()
@@ -71,6 +70,19 @@ export const api = {
     body.append('agent', agent)
     return request<CallSummary[]>('/calls', { method: 'POST', body })
   },
+  cancel: (callId: string) => request<{ status: string }>(`/calls/${id(callId)}/cancel`, { method: 'POST' }),
+  assign: (callId: string, agentId: number | null) =>
+    request<CallSummary>(`/calls/${id(callId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent_id: agentId }),
+    }),
+  createAgent: (name: string) =>
+    request<Agent>('/agents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    }),
   rescore: (callId: string) => request<CallSummary>(`/calls/${id(callId)}/rescore`, { method: 'POST' }),
   deleteCall: (callId: string) => request<void>(`/calls/${id(callId)}`, { method: 'DELETE' }),
   stats: () => request<Stats>('/stats'),

@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  categoryLabel, formatAgo, formatDuration, formatTimestamp, formatWhen, outcomeLabel, parseTimestamp, toneOf10,
-  toneOf100,
+  categoryLabel, formatAgo, formatDuration, formatTimestamp, formatWhen, modelShort, money, outcomeLabel, parseTimestamp,
 } from './format'
 
 describe('durations and timestamps', () => {
@@ -47,18 +46,16 @@ describe('formatAgo', () => {
   })
 })
 
-describe('labels and tones', () => {
+describe('labels', () => {
   it('labels categories and outcomes', () => {
     expect(categoryLabel('objection_handling')).toBe('Objection handling')
     expect(outcomeLabel('no_sale')).toBe('No sale')
     expect(outcomeLabel('not_interested')).toBe('Not interested')
   })
 
-  it('colours category scores out of 10', () => {
-    expect([7, 6, 5, 4].map(toneOf10)).toEqual(['green', 'amber', 'amber', 'red'])
-  })
-
-  it('colours overall scores out of 100', () => {
-    expect([75, 74, 60, 59].map(toneOf100)).toEqual(['green', 'amber', 'amber', 'red'])
+  it('shortens model ids and formats money', () => {
+    expect(modelShort('claude-sonnet-5-5')).toBe('sonnet-5-5')
+    expect(modelShort('whisper-large-v3-turbo')).toBe('whisper-large-v3-turbo')
+    expect(money(11000)).toBe('$11,000')
   })
 })

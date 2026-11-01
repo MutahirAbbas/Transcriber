@@ -5,10 +5,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, safeNext } from '../api/client'
 import { useMe } from '../api/hooks'
 import { LogoIcon } from '../components/Icons'
-import { btnPrimary, card } from '../lib/ui'
+import { btnPrimary, card, input } from '../lib/ui'
 import { useTitle } from '../lib/useTitle'
 
-const input = 'min-h-tap px-3 rounded-control border border-control bg-surface text-ink focus:border-accent'
+
 
 export function LoginPage() {
   useTitle('Sign in')
@@ -45,14 +45,14 @@ export function LoginPage() {
     <main className="min-h-screen flex items-center justify-center bg-ground px-4 py-10">
       <form onSubmit={submit} className={`${card} w-full max-w-[380px] px-6 py-7 flex flex-col gap-5`} noValidate>
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-logo bg-ink text-surface flex items-center justify-center">
+          <div className="text-ink flex items-center justify-center">
             <LogoIcon />
           </div>
-          <span className="font-semibold text-h2 tracking-tight">Call Analyzer</span>
+          <span className="font-semibold text-lg tracking-tight">Call Analyzer</span>
         </div>
-        <h1 className="m-0 text-h1d font-semibold tracking-snug">Sign in</h1>
+        <h1 className="m-0 text-h3 font-medium tracking-snug">Sign in</h1>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="email" className="text-sm text-muted font-medium">
+          <label htmlFor="email" className="text-sm text-muted">
             Email or username
           </label>
           <input id="email" type="text" autoComplete="username" autoCapitalize="none" spellCheck={false}
@@ -60,14 +60,14 @@ export function LoginPage() {
                  onChange={(e) => setEmail(e.target.value)} className={input} />
         </div>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="password" className="text-sm text-muted font-medium">
+          <label htmlFor="password" className="text-sm text-muted">
             Password
           </label>
           <input id="password" type="password" autoComplete="current-password" required value={password}
                  onChange={(e) => setPassword(e.target.value)} className={input} />
         </div>
         {error && (
-          <p role="alert" className="m-0 text-red text-md">
+          <p role="alert" className="m-0 text-rust text-md">
             {error}
           </p>
         )}

@@ -9,7 +9,7 @@ function Layout() {
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-ground">
       <Sidebar />
-      <main className="flex-1 min-w-0 px-4 py-6 md:px-10 md:pt-8 md:pb-12">
+      <main className="flex-1 min-w-0 px-4 pb-8 md:px-10 md:pt-8 md:pb-12">
         <Routes>
           <Route path="/" element={<CallsPage />} />
           <Route path="/calls/:id" element={<CallDetailPage />} />

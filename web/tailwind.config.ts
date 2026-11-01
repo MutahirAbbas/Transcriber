@@ -1,6 +1,6 @@
 import type { Config } from 'tailwindcss'
 
-// Tokens from BUILD_BRIEF.md / design/*.html. `colors` replaces Tailwind's palette
+// Tokens from design/v2 (sampled from the screenshots). `colors` replaces Tailwind's palette
 // entirely, so components can only use these names — no raw hexes.
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
@@ -8,63 +8,53 @@ export default {
     colors: {
       transparent: 'transparent',
       current: 'currentColor',
-      ground: '#F3F4F6',
-      surface: '#FFFFFF',
-      border: { DEFAULT: '#E3E5EA', subtle: '#EEF0F4' },
-      control: '#D5D8DF', // button / input borders
-      dropzone: '#B9BEC9', // dashed upload border
-      ink: '#15171A',
-      'text-2': '#374151',
-      muted: '#6B7280',
-      nav: '#4B5563',
-      accent: { DEFAULT: '#2F4BC9', hover: '#1F37A3' },
-      green: '#1B7F5A',
-      amber: '#B45309',
-      red: '#B42318',
-      sale: { bg: '#E3F3EC', text: '#166A48' },
-      badge: { bg: '#EEF0F4', text: '#374151' },
-      customer: '#9CA3AF', // transcript legend swatch
-      idle: '#9CA3AF', // offline transcriber dot
-      moment: {
-        bg: '#FDF3E7',
-        border: '#F0C9A0',
-        swatch: '#FDE7CF',
-        title: '#92400E',
-        body: '#78350F',
-      },
+      ground: '#F2F2F0',
+      surface: '#FFFFFF', // cards
+      faint: '#FAFAF8', // upload zone, in-progress rows
+      border: '#E6E6E2',
+      divider: '#ECECE8',
+      ink: '#141518',
+      'text-2': '#1F2126',
+      muted: '#5E6168',
+      wave: '#D9D9D4',
+      link: { DEFAULT: '#1F4FE0', ink: '#1537A8', tint: '#E9EFFF', wash: '#F6F8FF' },
+      rust: { DEFAULT: '#B4530A', ink: '#8A4A12', tint: '#FFF1E3', wash: '#FFF6EC', edge: '#F0D9C0' },
+      pill: '#F2F2F0',
+      band: { DEFAULT: '#141518', text: '#E6E6E2', muted: '#A9ACB3', edge: '#3A3C42' },
+      phase: { neutral: '#E6E6E2', faint: '#FBF1E6', light: '#F6E3CE', deep: '#F0C9A3' },
     },
     fontFamily: {
-      sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
-      mono: ['"IBM Plex Mono"', 'monospace'],
+      sans: ['Inter', 'system-ui', 'sans-serif'],
+      mono: ['ui-monospace', '"SF Mono"', 'Menlo', 'Consolas', 'monospace'],
     },
     fontSize: {
-      '2xs': '10px',
-      xs: '11px',
-      sm: '12px',
-      md: '13px',
-      base: ['14px', '1.5'],
-      h2: '15px',
-      lg: '18px',
-      h1d: '20px', // page h1 on detail
-      h1: '26px',
+      xs: '12px',
+      sm: '13px',
+      md: '14px',
+      base: ['15px', '1.45'],
+      lg: '17px',
+      xl: '18px',
+      h3: '22px',
+      h2: '30px',
+      stat: '34px',
+      score: ['104px', '1'],
     },
     borderRadius: {
       none: '0',
       bar: '3px',
-      swatch: '3px',
-      logo: '7px',
-      control: '8px', // buttons / inputs
-      'card-sm': '10px',
-      card: '12px',
+      tag: '5px',
+      phase: '6px',
+      control: '10px',
+      tile: '12px',
+      card: '16px',
       full: '999px',
     },
     extend: {
       letterSpacing: {
-        tightest: '-0.02em',
-        snug: '-0.015em',
+        tightest: '-0.03em',
+        snug: '-0.02em',
         tight: '-0.01em',
         head: '0.05em',
-        label: '0.06em',
       },
       minHeight: { tap: '44px' },
       minWidth: { tap: '44px' },

@@ -67,21 +67,10 @@ export const OUTCOME_LABELS: Record<Outcome, string> = {
 
 export const outcomeLabel = (o: string) => OUTCOME_LABELS[o as Outcome] ?? categoryLabel(o)
 
-export type Tone = 'green' | 'amber' | 'red'
+/** The model id without the brand, which the UI says separately: "Claude · sonnet-5-5". */
+export const modelShort = (model: string) => model.replace(/^claude-/, '')
 
-/** Category score out of 10: ≥ 7 green, 5–6 amber, ≤ 4 red. */
-export const toneOf10 = (score: number): Tone => (score >= 7 ? 'green' : score >= 5 ? 'amber' : 'red')
-
-/** Overall score out of 100: ≥ 75 green, 60–74 amber, < 60 red. */
-export const toneOf100 = (score: number): Tone => (score >= 75 ? 'green' : score >= 60 ? 'amber' : 'red')
-
-export const toneBg: Record<Tone, string> = { green: 'bg-green', amber: 'bg-amber', red: 'bg-red' }
-export const toneStroke: Record<Tone, string> = { green: 'stroke-green', amber: 'stroke-amber', red: 'stroke-red' }
-
-/** "whisper-large-v3-turbo · local" */
-export function transcriberLabel(provider: string, model: string): string {
-  const where = provider === 'whisper_local' ? 'local' : provider
-  return model ? `${model} · ${where}` : where
-}
+/** "$11,000" */
+export const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`
 
 export const clamp01 = (n: number) => Math.min(1, Math.max(0, n))

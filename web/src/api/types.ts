@@ -1,17 +1,21 @@
-export type CallStatus = 'queued' | 'transcribing' | 'scoring' | 'done' | 'error'
+export type CallStatus = 'queued' | 'transcribing' | 'separating' | 'scoring' | 'done' | 'error'
+export type Stage = CallStatus | 'waiting'
 export type Outcome = 'sale' | 'callback' | 'no_sale' | 'not_interested' | 'wrong_number' | 'unclear'
-export type Filter = 'all' | 'sales' | 'flagged' | 'below60'
+export type Filter = 'all' | 'sales' | 'flagged' | 'below_target' | 'unassigned'
 
 export interface CallSummary {
   id: string
   filename: string
   agent_id: number | null
-  agent: string | null
+  agent: { id: number; name: string } | null
+  suggested_agent: string | null
   uploaded_at: string
   duration_s: number | null
   stereo: boolean | null
   status: CallStatus
+  stage: Stage
   progress: number
+  eta_s: number | null
   error: string | null
   provider: string | null
   model: string | null
@@ -19,7 +23,9 @@ export interface CallSummary {
   overall_score: number | null
   outcome: Outcome | null
   flag_count: number
+  critical_count: number
   weakest_category: string | null
+  weakest_label: string | null
 }
 
 export interface CallList {
@@ -45,43 +51,90 @@ export interface Transcript {
   cost_usd: number
 }
 
-export interface CoachableMoment {
+export interface Finding {
+  kind: 'flag' | 'coach' | 'good'
+  category: string
   timestamp: string
-  what_happened: string
-  better_approach: string
+  text: string
+  better?: string
+  flag_type?: string
+  severity?: 'critical' | 'major'
+  label?: string
+}
+
+export interface PhaseMark {
+  phase: string
+  start: string
+}
+
+export interface Customer {
+  first_name: string | null
+  last_name: string | null
+  age: number | null
+  state: string | null
+}
+
+export interface Sale {
+  coverage_usd: number | null
+  premium_monthly_usd: number | null
+  carrier: string | null
+  plan_type: string
 }
 
 export interface Score {
   agent_speaker: string | null
   agent_name?: string | null
   call_outcome: Outcome
-  scores: Record<string, { score: number; evidence: string }>
-  overall_score: number
-  strengths: string[]
-  improvements: string[]
-  coachable_moments: CoachableMoment[]
-  compliance: {
-    required_phrases_present: boolean
-    missing: string[]
-    red_flags: { timestamp: string; flag: string }[]
-  }
   summary: string
-  _meta?: { scorer_model?: string; transcriber?: string }
+  scores: Record<string, { score: number; evidence: string; capped_from?: number }>
+  overall_score: number
+  work_on_next?: { intro: string; items: string[] }
+  _meta?: { scorer_model?: string; requested_model?: string; fallback?: boolean; transcriber?: string }
+}
+
+export interface CardPhase {
+  id: string
+  label: string
+  category: string
 }
 
 export interface CallDetail extends CallSummary {
   transcript: Transcript | null
   score: Score | null
-  speaker_map: Record<string, string>
+  scored_v2: boolean
+  speakers: Record<string, string>
+  speaker_source: string | null
+  waveform: number[] | null
+  findings: Finding[] | null
+  phases: PhaseMark[] | null
+  customer: Customer | null
+  sale: Sale | null
+  scorer_version: string | null
+  prev_id: string | null
+  next_id: string | null
+  agent_average: number | null
+  worker_id: string | null
   rtf: number | null
-  scorecard: { categories: string[]; required_phrases: string[] }
+  scorecard: {
+    version: number
+    categories: string[]
+    labels: Record<string, string>
+    required_phrases: string[]
+    phases: CardPhase[]
+    target_score: number
+  }
 }
 
 export interface Stats {
   calls_scored: number
   avg_score: number | null
   compliance_flags: number
+  flagged_calls: number
   weakest_category: string | null
+  weakest_label: string | null
+  weakest_avg: number | null
+  in_progress: number
+  target_score: number
 }
 
 export interface Agent {
@@ -108,6 +161,7 @@ export interface TranscriberSettings {
   provider: string
   model: string
   worker_mode: WorkerMode
+  scorer_model: string
 }
 
 export interface ListParams {

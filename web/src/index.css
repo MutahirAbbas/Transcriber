@@ -3,13 +3,16 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    overflow-x: clip;
+  }
   body {
     @apply m-0 bg-ground text-ink font-sans text-base antialiased;
   }
   a {
-    @apply text-accent no-underline hover:text-accent-hover;
+    @apply text-link no-underline hover:text-link-ink;
   }
   :focus-visible {
-    @apply outline outline-2 outline-offset-2 outline-accent;
+    @apply outline outline-2 outline-offset-2 outline-link;
   }
 }
