@@ -1,5 +1,6 @@
 from .base import Segment, Transcriber, TranscriptResult, audio_channels, audio_duration
 from .diarize import separate_speakers
+from .waveform import compute_waveform
 
 
 def get_transcriber(name: str, **kwargs) -> Transcriber:
@@ -17,4 +18,4 @@ def get_transcriber(name: str, **kwargs) -> Transcriber:
 
 
 __all__ = ["Segment", "Transcriber", "TranscriptResult", "audio_channels", "audio_duration", "get_transcriber",
-           "separate_speakers"]
+           "compute_waveform", "separate_speakers"]

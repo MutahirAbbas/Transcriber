@@ -264,3 +264,19 @@ def test_transcript_post_stores_speaker_source_and_drops_word_timings(client: Te
     assert call.speaker_source == "diarized"
     stored = json.loads(call.transcript_json)
     assert "words" not in stored["segments"][0] and stored["separation_s"] == 4.0
+
+
+def test_transcript_post_stores_the_waveform_apart_from_the_transcript(client: TestClient, app: FastAPI, queued) -> None:
+    queued("c1")
+    _claim(client)
+    assert client.post("/api/worker/jobs/c1/transcript", json={**_transcript(), "waveform": [0.0, 0.5, 1.0]},
+                       headers=H).status_code == 200
+    call = _get(app, "c1")
+    assert json.loads(call.waveform) == [0.0, 0.5, 1.0] and "waveform" not in json.loads(call.transcript_json)
+
+
+@pytest.mark.parametrize("bad", [[1.5], [-0.1], [0.5] * 1001])
+def test_a_bad_waveform_is_refused(client: TestClient, queued, bad: list[float]) -> None:
+    queued("c1")
+    _claim(client)
+    assert client.post("/api/worker/jobs/c1/transcript", json={**_transcript(), "waveform": bad}, headers=H).status_code == 400

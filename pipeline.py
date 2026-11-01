@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Callable, Optional
 
-from transcribers import TranscriptResult, audio_channels, get_transcriber, separate_speakers
+from transcribers import TranscriptResult, audio_channels, compute_waveform, get_transcriber, separate_speakers
 from scoring.rate_call import CallScorer
 
 ROOT = Path(__file__).resolve().parent
@@ -59,6 +59,7 @@ def process_call(
         on_status("transcribing")
     res = tx.transcribe(audio, call_id, keywords=keywords)
     res = separate_speakers(res, audio, stereo, on_start=(lambda: on_status("separating")) if on_status else None)
+    waveform = compute_waveform(audio)
     if redact:
         res = redact(res)
 
@@ -66,7 +67,7 @@ def process_call(
         on_status("scoring")
     score = (scorer or CallScorer()).score(res)
 
-    record = {"call_id": call_id, "stereo": stereo, "transcript": res.to_dict(), "score": score}
+    record = {"call_id": call_id, "stereo": stereo, "transcript": res.to_dict(), "score": score, "waveform": waveform}
     if out_dir:
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / f"{call_id}.json").write_text(json.dumps(record, indent=2))

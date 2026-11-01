@@ -54,6 +54,7 @@ class Call(SQLModel, table=True):
     attempts: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     worker_id: str | None = None
     speaker_source: str | None = None      # stereo | diarized | provider | none
+    waveform: str | None = None            # JSON: 400 peaks, 0–1
 
 
 class User(SQLModel, table=True):

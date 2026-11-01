@@ -167,7 +167,7 @@ class Worker:
             )
         finally:
             ticker.stop()
-        self._save(call_id, record["transcript"], record["score"])
+        self._save(call_id, record["transcript"], record["score"], waveform=record.get("waveform"))
 
     def _rescore(self, call_id: str) -> None:
         with Session(self.engine) as s:
@@ -186,7 +186,7 @@ class Worker:
         )
         self._save(call_id, transcript, self.scorer.score(res))
 
-    def _save(self, call_id: str, transcript: dict, score: dict) -> None:
+    def _save(self, call_id: str, transcript: dict, score: dict, waveform: list[float] | None = None) -> None:
         with Session(self.engine) as s:
             call = s.get(Call, call_id)
             if call is None:       # deleted mid-job
@@ -194,6 +194,8 @@ class Worker:
             call.transcript_json = json.dumps(transcript, ensure_ascii=False)
             call.provider, call.model = transcript.get("provider"), transcript.get("model")
             call.speaker_source = transcript.get("speaker_source") or call.speaker_source
+            if waveform:
+                call.waveform = json.dumps(waveform)
             if score.get("parse_error"):
                 # keep the transcript (and any earlier score) so Re-score can retry
                 call.status, call.error = CallStatus.error, f"Scoring failed: {score.get('reason', 'unknown')}"

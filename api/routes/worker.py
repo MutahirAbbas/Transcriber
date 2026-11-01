@@ -145,6 +145,7 @@ class TranscriptIn(BaseModel):
     cost_usd: float = 0.0
     speaker_source: Literal["stereo", "diarized", "provider", "none"] | None = None
     separation_s: float = Field(default=0.0, ge=0)
+    waveform: list[Annotated[float, Field(ge=0.0, le=1.0)]] | None = Field(default=None, max_length=1000)
 
 
 @router.post("/jobs/{call_id}/transcript")
@@ -166,10 +167,13 @@ def post_transcript(
         where = "; ".join(f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors()[:5])
         raise HTTPException(400, f"Invalid transcript: {where}") from None
 
-    transcript = redact_transcript_dict({**tx.model_dump(), "call_id": call.id})   # before anything is written
+    # before anything is written
+    transcript = redact_transcript_dict({**tx.model_dump(exclude={"waveform"}), "call_id": call.id})
     call.transcript_json = json.dumps(transcript, ensure_ascii=False)
     call.provider, call.model = tx.provider, tx.model
     call.speaker_source = tx.speaker_source
+    if tx.waveform:
+        call.waveform = json.dumps(tx.waveform)
     call.status, call.progress, call.lease_until, call.error = CallStatus.scoring, SCORING_PROGRESS, None, None
     session.add(call)
     session.commit()

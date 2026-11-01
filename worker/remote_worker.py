@@ -37,7 +37,7 @@ from urllib.parse import quote, urlsplit
 import httpx
 from dotenv import load_dotenv
 
-from transcribers import Transcriber, diarize, get_transcriber, separate_speakers
+from transcribers import Transcriber, compute_waveform, diarize, get_transcriber, separate_speakers
 
 ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger("call-worker")
@@ -169,8 +169,9 @@ class RemoteWorker:
                 res = make_transcriber(self.cfg.transcriber, stereo).transcribe(
                     audio, call_id, keywords=job.get("keywords") or None)
                 res = separate_speakers(res, audio, stereo, on_start=heartbeat.separating)
+                waveform = compute_waveform(audio)
                 heartbeat.stop()
-                self.post_transcript(call_id, _without_words(res.to_dict()))
+                self.post_transcript(call_id, {**_without_words(res.to_dict()), "waveform": waveform})
         except Stop:
             outcome = "stopped"
             self.fail(call_id, "Transcriber was stopped mid-job")
