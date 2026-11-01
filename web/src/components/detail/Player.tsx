@@ -62,7 +62,9 @@ function Waveform({ audio, peaks, findings }: { audio: Audio; peaks: number[]; f
           type="button"
           title={`${f.timestamp} · ${f.text}`}
           aria-label={`${f.kind === 'flag' ? 'Flag' : 'Coachable moment'} at ${f.timestamp}`}
-          className="absolute inset-y-0 -translate-x-1/2 w-3 flex justify-center cursor-pointer group"
+          // narrow: on a long call moments seconds apart sit a few pixels apart, and a wider target
+          // would take the click meant for its neighbour
+          className="absolute inset-y-0 -translate-x-1/2 w-[7px] flex justify-center cursor-pointer group"
           style={{ left: at(findingTime(f)) }}
           onClick={(e) => {
             e.stopPropagation()

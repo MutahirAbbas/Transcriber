@@ -56,6 +56,7 @@ export function buildTurns(
   const boundaries = new Set(spans.map((s) => s.start))
   const turns: Turn[] = []
   for (const seg of segments) {
+    if (!seg.text.trim()) continue
     const last = turns[turns.length - 1]
     const crosses = [...boundaries].some((b) => last && b > last.start && b <= seg.start)
     if (last && seg.speaker && last.speaker === seg.speaker && !crosses) {

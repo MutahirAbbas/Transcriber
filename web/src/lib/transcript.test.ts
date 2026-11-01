@@ -48,6 +48,11 @@ describe('buildTurns', () => {
     ])
   })
 
+  it('skips segments with no text, so they can neither show as empty turns nor split a real one', () => {
+    const turns = buildTurns([seg(0, 'one'), seg(1, '  ', 'B'), seg(2, 'two')], names, 'A', null, [])
+    expect(turns.map((t) => t.text)).toEqual(['one two'])
+  })
+
   it('splits a turn at a phase boundary', () => {
     const spans = phaseSpans([{ phase: 'opening', start: '00:00' }, { phase: 'close', start: '00:02' }], card, 10)
     expect(buildTurns([seg(0, 'one'), seg(1, 'two'), seg(2, 'three')], names, 'A', null, spans).map((t) => t.text))

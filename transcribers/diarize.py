@@ -118,7 +118,7 @@ def assign_speakers(segments: Sequence[Segment], turns: Sequence[Turn]) -> list[
             run.append(word)
             speaker = who
         out.append(_from_words(seg, run, speaker))
-    return out
+    return [s for s in out if s.text.strip()]    # whisper sometimes gives a segment with no words in it
 
 
 def _from_words(seg: Segment, words: list[dict], speaker: str | None) -> Segment:

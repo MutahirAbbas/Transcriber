@@ -57,6 +57,12 @@ def test_a_segment_without_word_timings_goes_by_its_midpoint() -> None:
     assert (out[0].text, out[0].speaker) == ("no words", "SPEAKER_1")
 
 
+def test_segments_with_no_text_are_dropped() -> None:
+    segments = [Segment(0.0, 1.0, "   "), Segment(1.0, 2.0, "hi", words=[word(1.0, 2.0, "hi")]),
+                Segment(2.0, 3.0, " ", words=[word(2.0, 3.0, " ")])]
+    assert [s.text for s in assign_speakers(segments, [(0.0, 3.0, "SPEAKER_0")])] == ["hi"]
+
+
 def test_no_turns_changes_nothing() -> None:
     seg = Segment(0.0, 1.0, "hi")
     assert assign_speakers([seg], []) == [seg]
