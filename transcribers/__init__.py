@@ -1,4 +1,5 @@
 from .base import Segment, Transcriber, TranscriptResult, audio_channels, audio_duration
+from .diarize import separate_speakers
 
 
 def get_transcriber(name: str, **kwargs) -> Transcriber:
@@ -15,4 +16,5 @@ def get_transcriber(name: str, **kwargs) -> Transcriber:
     raise ValueError(f"unknown transcriber: {name}")
 
 
-__all__ = ["Segment", "Transcriber", "TranscriptResult", "audio_channels", "audio_duration", "get_transcriber"]
+__all__ = ["Segment", "Transcriber", "TranscriptResult", "audio_channels", "audio_duration", "get_transcriber",
+           "separate_speakers"]

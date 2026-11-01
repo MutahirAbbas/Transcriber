@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hmac
 import json
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import unquote
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, Response
@@ -19,7 +19,7 @@ from sqlmodel import Session
 from api import leases, repo
 from api.db import get_session
 from api.media import AUDIO_TYPES, find_audio
-from api.models import Call, CallStatus, utcnow
+from api.models import ON_WORKER, Call, CallStatus, utcnow
 from api.redaction import redact_transcript_dict
 from api.worker import SCORING_PROGRESS
 
@@ -84,6 +84,7 @@ def claim(body: ClaimIn, request: Request, session: SessionDep, _worker: WorkerI
         "keywords": load_keywords(settings.keywords_path),
         "duration_s": call.duration_s,
         "rtf": repo.recent_rtf(session, settings.provider, call.stereo),   # for the progress estimate
+        "separation_rtf": repo.recent_separation_rtf(session),
     }
 
 
@@ -100,7 +101,7 @@ def job_audio(call_id: str, request: Request, session: SessionDep, worker_id: Wo
 
 
 class HeartbeatIn(BaseModel):
-    stage: str = Field(default="transcribing", max_length=40)
+    stage: Literal["transcribing", "separating"] = "transcribing"
     progress: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
@@ -108,10 +109,18 @@ class HeartbeatIn(BaseModel):
 def heartbeat(call_id: str, body: HeartbeatIn, session: SessionDep, worker_id: WorkerId) -> dict[str, Any]:
     call = _leased(session, call_id, worker_id)
     call.lease_until = utcnow() + leases.LEASE
+    call.status = CallStatus(body.stage)
     call.progress = round(min(body.progress, 0.9), 3)
     session.add(call)
     session.commit()
     return {"lease_until": call.lease_until.isoformat().replace("+00:00", "Z")}
+
+
+class WordIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    start: float
+    end: float
+    text: str
 
 
 class SegmentIn(BaseModel):
@@ -121,6 +130,7 @@ class SegmentIn(BaseModel):
     text: str
     speaker: str | None = None
     confidence: float | None = None
+    words: list[WordIn] = []     # accepted, then dropped by redaction: never stored
 
 
 class TranscriptIn(BaseModel):
@@ -133,6 +143,8 @@ class TranscriptIn(BaseModel):
     latency_s: float = Field(ge=0)
     audio_duration_s: float = Field(ge=0)
     cost_usd: float = 0.0
+    speaker_source: Literal["stereo", "diarized", "provider", "none"] | None = None
+    separation_s: float = Field(default=0.0, ge=0)
 
 
 @router.post("/jobs/{call_id}/transcript")
@@ -157,6 +169,7 @@ def post_transcript(
     transcript = redact_transcript_dict({**tx.model_dump(), "call_id": call.id})   # before anything is written
     call.transcript_json = json.dumps(transcript, ensure_ascii=False)
     call.provider, call.model = tx.provider, tx.model
+    call.speaker_source = tx.speaker_source
     call.status, call.progress, call.lease_until, call.error = CallStatus.scoring, SCORING_PROGRESS, None, None
     session.add(call)
     session.commit()
@@ -174,7 +187,7 @@ def fail(call_id: str, body: FailIn, session: SessionDep, worker_id: WorkerId) -
     call = session.get(Call, call_id)
     if call is None:
         raise HTTPException(404, "Call not found")
-    if call.transcript_json is not None or call.status != CallStatus.transcribing:
+    if call.transcript_json is not None or call.status not in ON_WORKER:
         return {"status": call.status.value}    # already moved on
     if not leases.holds_lease(call, worker_id):
         raise HTTPException(409, "This worker doesn't hold the lease on that call")

@@ -24,8 +24,9 @@ from sqlmodel import Session, col, select
 
 from api import derive, repo
 from api.media import find_audio
-from api.models import TERMINAL, Call, CallStatus, utcnow
+from api.models import ON_WORKER, TERMINAL, Call, CallStatus, utcnow
 from api.redaction import redact_result, redact_score
+from transcribers import diarize
 from transcribers.base import Segment, TranscriptResult
 
 log = logging.getLogger(__name__)
@@ -147,13 +148,14 @@ class Worker:
         if audio is None:
             raise FileNotFoundError("Audio file is missing")
         scorer = self.scorer
-        rtf = self.current_rtf(stereo)
-        ticker = _ProgressTicker(self, call_id, duration_s, rtf)
+        ticker = _ProgressTicker(self, call_id, duration_s, self.expected_rtf(stereo))
 
         def on_status(stage: str) -> None:
             if stage == "transcribing":
                 self._update(call_id, status=CallStatus.transcribing, progress=0.0, error=None)
                 ticker.start()
+            elif stage == "separating":
+                self._update(call_id, status=CallStatus.separating)
             elif stage == "scoring":
                 ticker.stop()
                 self._update(call_id, status=CallStatus.scoring, progress=SCORING_PROGRESS)
@@ -191,6 +193,7 @@ class Worker:
                 return
             call.transcript_json = json.dumps(transcript, ensure_ascii=False)
             call.provider, call.model = transcript.get("provider"), transcript.get("model")
+            call.speaker_source = transcript.get("speaker_source") or call.speaker_source
             if score.get("parse_error"):
                 # keep the transcript (and any earlier score) so Re-score can retry
                 call.status, call.error = CallStatus.error, f"Scoring failed: {score.get('reason', 'unknown')}"
@@ -210,6 +213,14 @@ class Worker:
     def current_rtf(self, stereo: bool | None) -> float:
         with Session(self.engine) as s:
             return repo.recent_rtf(s, self.provider, stereo)
+
+    def expected_rtf(self, stereo: bool | None) -> float:
+        """Transcription plus, for a mono file if it's on, speaker separation."""
+        separation = 0.0
+        if diarize.enabled() and not stereo:
+            with Session(self.engine) as s:
+                separation = repo.recent_separation_rtf(s)
+        return self.current_rtf(stereo) + separation
 
     def _update(self, call_id: str, **fields: Any) -> None:
         with Session(self.engine) as s:
@@ -242,7 +253,7 @@ class _ProgressTicker:
                 progress = min(MAX_TRANSCRIBE_PROGRESS, (time.monotonic() - t0) / self.expected_s)
                 with Session(self.worker.engine) as s:
                     call = s.get(Call, self.call_id)
-                    if call is None or call.status != CallStatus.transcribing:
+                    if call is None or call.status not in ON_WORKER:
                         return
                     call.progress = round(progress, 3)
                     s.add(call)

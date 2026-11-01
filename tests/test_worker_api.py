@@ -232,3 +232,35 @@ def test_no_ssn_shaped_digits_reach_the_database(client: TestClient, app: FastAP
     raw = settings.db_path.read_bytes() + (settings.db_path.with_name(settings.db_path.name + "-wal").read_bytes()
                                             if settings.db_path.with_name(settings.db_path.name + "-wal").exists() else b"")
     assert not re.search(rb"\d{3}[- ]?\d{2}[- ]?\d{4}", raw)
+
+
+def test_heartbeat_moves_the_call_to_separating_and_keeps_the_lease(client: TestClient, app: FastAPI, queued) -> None:
+    queued("c1")
+    _claim(client)
+    r = client.post("/api/worker/jobs/c1/heartbeat", json={"stage": "separating", "progress": 0.5}, headers=H)
+    assert r.status_code == 200 and _get(app, "c1").status == CallStatus.separating
+    r = client.post("/api/worker/jobs/c1/heartbeat", json={"stage": "separating", "progress": 0.6}, headers=H)
+    assert r.status_code == 200 and _get(app, "c1").progress == 0.6
+    assert client.post("/api/worker/jobs/c1/heartbeat", json={"stage": "scoring"}, headers=H).status_code == 422
+
+
+def test_a_call_stuck_in_separating_is_requeued_when_the_lease_expires(client: TestClient, app: FastAPI, queued) -> None:
+    queued("c1")
+    _claim(client)
+    client.post("/api/worker/jobs/c1/heartbeat", json={"stage": "separating"}, headers=H)
+    assert leases.requeue_expired(app.state.engine, now=utcnow() + leases.LEASE + timedelta(minutes=1)) == 1
+    assert _get(app, "c1").status == CallStatus.queued
+
+
+def test_transcript_post_stores_speaker_source_and_drops_word_timings(client: TestClient, app: FastAPI, queued) -> None:
+    queued("c1")
+    _claim(client)
+    body = _transcript("my social is one two three four five six seven eight nine")
+    body["speaker_source"] = "diarized"
+    body["separation_s"] = 4.0
+    body["segments"][0]["words"] = [{"start": 0.0, "end": 1.0, "text": "one"}, {"start": 1.0, "end": 2.0, "text": "two"}]
+    assert client.post("/api/worker/jobs/c1/transcript", json=body, headers=H).status_code == 200
+    call = _get(app, "c1")
+    assert call.speaker_source == "diarized"
+    stored = json.loads(call.transcript_json)
+    assert "words" not in stored["segments"][0] and stored["separation_s"] == 4.0

@@ -18,6 +18,9 @@ class Segment:
     text: str
     speaker: Optional[str] = None   # "agent" / "customer" / "SPEAKER_00" ...
     confidence: Optional[float] = None
+    # [{start, end, text}] where the provider gives word timings. Only needed to split segments
+    # by speaker: redaction drops them, so they're never stored.
+    words: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -29,6 +32,8 @@ class TranscriptResult:
     latency_s: float                # wall-clock seconds for the API/model call
     audio_duration_s: float
     cost_usd: float = 0.0           # estimated, from provider pricing
+    speaker_source: Optional[str] = None   # "stereo" | "diarized" | "provider" | "none"
+    separation_s: float = 0.0       # wall-clock seconds spent separating speakers
     raw: dict = field(default_factory=dict)   # untouched provider response
 
     @property

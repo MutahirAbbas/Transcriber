@@ -108,6 +108,7 @@ def in_progress(session: Session, errors_since: datetime) -> list[tuple[Call, st
 
 
 DEFAULT_RTF = 0.15        # local Whisper, until there are measured calls
+DEFAULT_SEPARATION_RTF = 0.05
 RTF_SAMPLES = 10
 
 
@@ -127,6 +128,15 @@ def recent_rtf(session: Session, provider: str, stereo: bool | None) -> float:
         if ratios:
             return sum(ratios) / len(ratios)
     return DEFAULT_RTF
+
+
+def recent_separation_rtf(session: Session) -> float:
+    """Same idea for speaker separation, from the calls that were actually diarized."""
+    ratio = (func.json_extract(Call.transcript_json, "$.separation_s")
+             / func.json_extract(Call.transcript_json, "$.audio_duration_s"))
+    stmt = select(ratio).where(Call.status == CallStatus.done, Call.speaker_source == "diarized")
+    ratios = [r for r in session.exec(stmt.order_by(col(Call.scored_at).desc()).limit(RTF_SAMPLES)).all() if r and r > 0]
+    return sum(ratios) / len(ratios) if ratios else DEFAULT_SEPARATION_RTF
 
 
 def agent_name(session: Session, agent_id: int | None) -> str | None:

@@ -13,14 +13,14 @@ import os
 from pathlib import Path
 from typing import Callable, Optional
 
-from transcribers import TranscriptResult, audio_channels, get_transcriber
+from transcribers import TranscriptResult, audio_channels, get_transcriber, separate_speakers
 from scoring.rate_call import CallScorer
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_PROVIDER = os.environ.get("TRANSCRIBER", "whisper_local")
 
 # Stage names the UI shows. on_status(stage) is called as each one begins.
-STAGES = ("transcribing", "scoring", "done")
+STAGES = ("transcribing", "separating", "scoring", "done")
 
 StatusCallback = Optional[Callable[[str], None]]
 
@@ -58,6 +58,7 @@ def process_call(
     if on_status:
         on_status("transcribing")
     res = tx.transcribe(audio, call_id, keywords=keywords)
+    res = separate_speakers(res, audio, stereo, on_start=(lambda: on_status("separating")) if on_status else None)
     if redact:
         res = redact(res)
 

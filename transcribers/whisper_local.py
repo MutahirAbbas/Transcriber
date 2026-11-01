@@ -4,7 +4,7 @@
 Diarization is NOT included here. Two options:
   1. If Vici records stereo (agent on one channel, customer on the other), set
      stereo_split=True and we transcribe each channel separately — free, exact diarization.
-  2. Otherwise add pyannote later (needs a HF token) and merge by timestamp.
+  2. Otherwise transcribers.diarize labels the word timings kept on each segment.
 """
 from __future__ import annotations
 
@@ -37,9 +37,14 @@ class WhisperLocalTranscriber(Transcriber):
             path_or_hf_repo=self.model,
             language="en",
             initial_prompt=prompt,
-            word_timestamps=False,
+            word_timestamps=True,
         )
-        return [Segment(start=s["start"], end=s["end"], text=s["text"].strip()) for s in out["segments"]]
+        return [
+            Segment(start=s["start"], end=s["end"], text=s["text"].strip(),
+                    words=[{"start": w["start"], "end": w["end"], "text": w["word"].strip()}
+                           for w in s.get("words", [])])
+            for s in out["segments"]
+        ]
 
     def transcribe(self, audio_path: Path, call_id: str, keywords: list[str] | None = None) -> TranscriptResult:
         # Whisper has no keyword boosting; seeding the prompt with domain terms is the usual trick.

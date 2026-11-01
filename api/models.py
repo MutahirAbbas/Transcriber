@@ -14,12 +14,14 @@ def utcnow() -> datetime:
 class CallStatus(str, Enum):
     queued = "queued"
     transcribing = "transcribing"
+    separating = "separating"
     scoring = "scoring"
     done = "done"
     error = "error"
 
 
 TERMINAL = (CallStatus.done, CallStatus.error)
+ON_WORKER = (CallStatus.transcribing, CallStatus.separating)   # a transcriber holds the lease
 
 
 class Agent(SQLModel, table=True):
@@ -51,6 +53,7 @@ class Call(SQLModel, table=True):
     lease_until: datetime | None = None
     attempts: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     worker_id: str | None = None
+    speaker_source: str | None = None      # stereo | diarized | provider | none
 
 
 class User(SQLModel, table=True):

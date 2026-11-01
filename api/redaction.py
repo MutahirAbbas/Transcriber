@@ -146,8 +146,11 @@ def redact_text(text: str) -> str:
 def redact_result(res: TranscriptResult) -> TranscriptResult:
     """Copy with every segment redacted and the raw provider response dropped.
 
+    Word timings go too: a number spoken across several words only matches as a run, so word
+    by word it would get through. They've done their job once speakers are assigned.
+
     Shaped for `pipeline.process_call(redact=...)`, so the scorer never sees PII."""
-    segments = [dataclasses.replace(s, text=redact_text(s.text)) for s in res.segments]
+    segments = [dataclasses.replace(s, text=redact_text(s.text), words=[]) for s in res.segments]
     return dataclasses.replace(res, segments=segments, raw={})
 
 
@@ -157,6 +160,7 @@ def redact_transcript_dict(d: dict) -> dict:
     out.pop("raw", None)
     for seg in out.get("segments", []):
         seg["text"] = redact_text(seg.get("text") or "")
+        seg.pop("words", None)
     return out
 
 

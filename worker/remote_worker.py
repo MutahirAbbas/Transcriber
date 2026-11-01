@@ -11,6 +11,7 @@ Settings come from the environment or, failing that, worker.env in the repo root
     WORKER_TOKEN   same value as the server's WORKER_TOKEN
     WORKER_ID      name shown in the UI (default: this Mac's name)
     TRANSCRIBER    default whisper_local
+    DIARIZER       pyannote to separate speakers on mono recordings (needs HF_TOKEN)
     WORKER_MODE    remote-production on the Mac serving the live site. Anything else (or unset)
                    and the worker only talks to this machine: see assert_server_allowed.
 
@@ -36,7 +37,7 @@ from urllib.parse import quote, urlsplit
 import httpx
 from dotenv import load_dotenv
 
-from transcribers import Transcriber, get_transcriber
+from transcribers import Transcriber, diarize, get_transcriber, separate_speakers
 
 ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger("call-worker")
@@ -47,13 +48,15 @@ MAX_BACKOFF_S = 60.0
 HEARTBEAT_S = 30.0
 MAX_PROGRESS = 0.9
 DEFAULT_RTF = 0.15
+DEFAULT_SEPARATION_RTF = 0.05
 TIMEOUT = httpx.Timeout(30.0, read=300.0)   # audio downloads can be large
 PRODUCTION_MODE = "remote-production"
 LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1")
 
 
-class Stop(Exception):
-    """SIGTERM / SIGINT arrived while a job was running."""
+class Stop(BaseException):
+    """SIGTERM / SIGINT arrived while a job was running. Not an Exception, so nothing it
+    interrupts (a model, the never-fail wrapper round diarization) can swallow it."""
 
 
 class LeaseLost(Exception):
@@ -150,7 +153,10 @@ class RemoteWorker:
     def process(self, job: dict[str, Any]) -> str:
         call_id = job["call_id"]
         duration = float(job.get("duration_s") or 0)
+        stereo = bool(job.get("stereo"))
         rtf = float(job.get("rtf") or DEFAULT_RTF)
+        if diarize.enabled() and not stereo:
+            rtf += float(job.get("separation_rtf") or DEFAULT_SEPARATION_RTF)
         t0 = time.monotonic()
         heartbeat = _Heartbeat(self, call_id, expected_s=duration * rtf)
         outcome = "ok"
@@ -160,10 +166,11 @@ class RemoteWorker:
                 heartbeat.start()
                 audio = Path(td) / _local_name(job.get("audio_path_hint") or "")
                 self.download(call_id, audio)
-                res = make_transcriber(self.cfg.transcriber, bool(job.get("stereo"))).transcribe(
+                res = make_transcriber(self.cfg.transcriber, stereo).transcribe(
                     audio, call_id, keywords=job.get("keywords") or None)
+                res = separate_speakers(res, audio, stereo, on_start=heartbeat.separating)
                 heartbeat.stop()
-                self.post_transcript(call_id, res.to_dict())
+                self.post_transcript(call_id, _without_words(res.to_dict()))
         except Stop:
             outcome = "stopped"
             self.fail(call_id, "Transcriber was stopped mid-job")
@@ -196,8 +203,8 @@ class RemoteWorker:
             raise LeaseLost
         r.raise_for_status()
 
-    def heartbeat(self, call_id: str, progress: float) -> None:
-        r = self.client.post(self._job(call_id, "heartbeat"), json={"stage": "transcribing", "progress": progress})
+    def heartbeat(self, call_id: str, progress: float, stage: str = "transcribing") -> None:
+        r = self.client.post(self._job(call_id, "heartbeat"), json={"stage": stage, "progress": progress})
         if r.status_code == 409:
             raise LeaseLost
         r.raise_for_status()
@@ -215,18 +222,30 @@ class _Heartbeat:
 
     def __init__(self, worker: RemoteWorker, call_id: str, expected_s: float) -> None:
         self.worker, self.call_id, self.expected_s = worker, call_id, expected_s
+        self.stage = "transcribing"
+        self._t0 = time.monotonic()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
+    def _progress(self) -> float:
+        elapsed = time.monotonic() - self._t0
+        return round(min(MAX_PROGRESS, elapsed / self.expected_s), 3) if self.expected_s > 0 else 0.0
+
+    def separating(self) -> None:
+        """Tell the server now rather than at the next beat, so the UI shows the new stage."""
+        self.stage = "separating"
+        try:
+            self.worker.heartbeat(self.call_id, self._progress(), self.stage)
+        except (LeaseLost, httpx.HTTPError) as e:   # the regular beat will try again
+            log.warning("stage update for %s failed: %s", self.call_id, type(e).__name__)
+
     def start(self) -> None:
-        t0 = time.monotonic()
+        self._t0 = time.monotonic()
 
         def beat() -> None:
             while not self._stop.wait(HEARTBEAT_S):
-                elapsed = time.monotonic() - t0
-                progress = min(MAX_PROGRESS, elapsed / self.expected_s) if self.expected_s > 0 else 0.0
                 try:
-                    self.worker.heartbeat(self.call_id, round(progress, 3))
+                    self.worker.heartbeat(self.call_id, self._progress(), self.stage)
                 except LeaseLost:
                     log.warning("call=%s lease lost; finishing anyway", self.call_id)
                     return
@@ -242,6 +261,11 @@ class _Heartbeat:
             self._thread.join()
 
 
+def _without_words(transcript: dict[str, Any]) -> dict[str, Any]:
+    """Word timings stay on this Mac: they were only needed to assign speakers."""
+    return {**transcript, "segments": [{k: v for k, v in s.items() if k != "words"} for s in transcript["segments"]]}
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
     for noisy in ("httpx", "httpx2", "httpcore", "huggingface_hub"):   # one line per job, not one per poll
@@ -251,6 +275,7 @@ def main() -> int:
 
     log.info("loading %s model…", cfg.transcriber)
     make_transcriber(cfg.transcriber, False).load()   # once, not per job
+    diarize.load()
 
     client = httpx.Client(
         base_url=cfg.server_url, timeout=TIMEOUT,

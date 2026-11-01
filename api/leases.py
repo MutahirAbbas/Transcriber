@@ -16,7 +16,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, col, select
 
-from api.models import Call, CallStatus, WorkerSeen, utcnow
+from api.models import ON_WORKER, Call, CallStatus, WorkerSeen, utcnow
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ def claim(engine: Engine, worker_id: str, now: datetime | None = None) -> Call |
 
 def holds_lease(call: Call, worker_id: str, now: datetime | None = None) -> bool:
     now = now or utcnow()
-    return (call.status == CallStatus.transcribing and call.worker_id == worker_id
+    return (call.status in ON_WORKER and call.worker_id == worker_id
             and call.lease_until is not None and call.lease_until > now)
 
 
@@ -79,7 +79,7 @@ def requeue_expired(engine: Engine, now: datetime | None = None) -> int:
     now = now or utcnow()
     with Session(engine) as s:
         expired = s.exec(
-            select(Call).where(Call.status == CallStatus.transcribing, col(Call.lease_until) < now)
+            select(Call).where(col(Call.status).in_(ON_WORKER), col(Call.lease_until) < now)
         ).all()
         for call in expired:
             release(call, "Transcriber stopped responding")
