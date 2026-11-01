@@ -55,7 +55,7 @@ export function CallsPage() {
         <div className="flex flex-col gap-1 flex-[1_1_360px] max-w-[600px]">
           <h1 className="m-0 text-h2 font-medium tracking-snug">Calls</h1>
           <p className="m-0 text-muted">
-            Every recording is transcribed on your Mac, scored against the scorecard, and ready for review in about a minute.
+            Every recording is transcribed on your Mac, scored against the scorecard, and ready for review a few minutes after upload.
           </p>
         </div>
         <div className="flex gap-2.5 flex-wrap">
