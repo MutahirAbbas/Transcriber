@@ -21,7 +21,7 @@ export default {
       rust: { DEFAULT: '#B4530A', ink: '#8A4A12', tint: '#FFF1E3', wash: '#FFF6EC', edge: '#F0D9C0' },
       pill: '#F2F2F0',
       band: { DEFAULT: '#141518', text: '#E6E6E2', muted: '#A9ACB3', edge: '#3A3C42' },
-      phase: { neutral: '#E6E6E2', faint: '#FBF1E6', light: '#F6E3CE', deep: '#F0C9A3' },
+      phase: { neutral: '#E6E6E2', light: '#F6E3CE', deep: '#F0C9A3' },
     },
     fontFamily: {
       sans: ['Inter', 'system-ui', 'sans-serif'],

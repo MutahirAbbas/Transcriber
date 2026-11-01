@@ -124,10 +124,9 @@ export function matchRanges(text: string, query: string): [number, number][] {
   return out
 }
 
-/** Light to deep as the score drops; 7 and up stays neutral. */
+/** Light to deep as the score drops; 5 and up stays neutral, as in the design. */
 export function phaseFill(score: number | null): string {
-  if (score == null || score >= 7) return 'bg-phase-neutral text-ink'
-  if (score >= 5) return 'bg-phase-faint text-rust-ink'
+  if (score == null || score >= 5) return 'bg-phase-neutral text-ink'
   if (score >= 3) return 'bg-phase-light text-rust-ink'
   return 'bg-phase-deep text-rust-ink'
 }

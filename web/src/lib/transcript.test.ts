@@ -95,9 +95,9 @@ describe('matchRanges', () => {
 })
 
 describe('phaseFill', () => {
-  it('deepens as the score drops, neutral from 7', () => {
+  it('deepens as the score drops, neutral from 5', () => {
     expect([10, 7, 6, 5, 4, 3, 2, 1].map((s) => phaseFill(s).split(' ')[0])).toEqual([
-      'bg-phase-neutral', 'bg-phase-neutral', 'bg-phase-faint', 'bg-phase-faint', 'bg-phase-light', 'bg-phase-light',
+      'bg-phase-neutral', 'bg-phase-neutral', 'bg-phase-neutral', 'bg-phase-neutral', 'bg-phase-light', 'bg-phase-light',
       'bg-phase-deep', 'bg-phase-deep'])
   })
 })
