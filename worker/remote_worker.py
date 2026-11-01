@@ -11,6 +11,8 @@ Settings come from the environment or, failing that, worker.env in the repo root
     WORKER_TOKEN   same value as the server's WORKER_TOKEN
     WORKER_ID      name shown in the UI (default: this Mac's name)
     TRANSCRIBER    default whisper_local
+    WORKER_MODE    remote-production on the Mac serving the live site. Anything else (or unset)
+                   and the worker only talks to this machine: see assert_server_allowed.
 
 Logs one line per job — call id, audio length, time taken, outcome — never text.
 """
@@ -29,7 +31,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import FrameType
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import httpx
 from dotenv import load_dotenv
@@ -46,6 +48,8 @@ HEARTBEAT_S = 30.0
 MAX_PROGRESS = 0.9
 DEFAULT_RTF = 0.15
 TIMEOUT = httpx.Timeout(30.0, read=300.0)   # audio downloads can be large
+PRODUCTION_MODE = "remote-production"
+LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1")
 
 
 class Stop(Exception):
@@ -64,12 +68,21 @@ class Config:
     transcriber: str
 
 
+def assert_server_allowed(server_url: str, worker_mode: str) -> None:
+    """A dev checkout must never claim real jobs: outside WORKER_MODE=remote-production,
+    refuse to start unless the server is on this machine."""
+    if worker_mode != PRODUCTION_MODE and urlsplit(server_url).hostname not in LOOPBACK_HOSTS:
+        raise SystemExit(f"SERVER_URL must be on this machine unless WORKER_MODE={PRODUCTION_MODE} "
+                         f"(got WORKER_MODE={worker_mode or 'unset'}, SERVER_URL={server_url})")
+
+
 def load_config(env_file: Path = ROOT / "worker.env") -> Config:
     load_dotenv(env_file)   # variables already in the environment win
     url = os.environ.get("SERVER_URL", "").strip().rstrip("/")
     token = os.environ.get("WORKER_TOKEN", "").strip()
     if not url or not token:
         raise SystemExit("SERVER_URL and WORKER_TOKEN must be set (environment or worker.env)")
+    assert_server_allowed(url, os.environ.get("WORKER_MODE", "").strip())
     worker_id = os.environ.get("WORKER_ID", "").strip() or socket.gethostname().removesuffix(".local")
     return Config(url, token, worker_id, os.environ.get("TRANSCRIBER", "whisper_local").strip())
 

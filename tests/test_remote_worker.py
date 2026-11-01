@@ -174,15 +174,45 @@ def test_run_backs_off_when_the_server_rejects_the_token(server_url: str, monkey
 
 
 def test_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    for var in ("SERVER_URL", "WORKER_TOKEN", "WORKER_ID", "TRANSCRIBER"):
+    for var in ("SERVER_URL", "WORKER_TOKEN", "WORKER_ID", "TRANSCRIBER", "WORKER_MODE"):
         monkeypatch.delenv(var, raising=False)
     with pytest.raises(SystemExit):
         rw.load_config(tmp_path / "missing.env")
     env = tmp_path / "worker.env"
-    env.write_text('SERVER_URL=https://calls.example/\nWORKER_TOKEN=abc\nWORKER_ID="Mutahir\'s Mac"\n')
+    env.write_text('SERVER_URL=https://calls.example/\nWORKER_TOKEN=abc\nWORKER_ID="Mutahir\'s Mac"\n'
+                   'WORKER_MODE=remote-production\n')
     cfg = rw.load_config(env)
     assert (cfg.server_url, cfg.token, cfg.worker_id, cfg.transcriber) == (
         "https://calls.example", "abc", "Mutahir's Mac", "whisper_local")
+
+
+@pytest.mark.parametrize("url, mode, allowed", [
+    ("http://127.0.0.1:8000", "", True),
+    ("http://localhost:8000", "local-dev", True),
+    ("http://[::1]:8000", "remote", True),
+    ("https://calls.tqc4.ai", "remote-production", True),
+    ("https://calls.tqc4.ai", "", False),
+    ("https://calls.tqc4.ai", "local-dev", False),
+    ("https://calls.tqc4.ai", "remote", False),
+    ("https://calls.tqc4.ai", "Remote-Production", False),
+    ("http://localhost.calls.tqc4.ai", "", False),
+    ("http://127.0.0.1@calls.tqc4.ai", "", False),
+])
+def test_only_production_mode_may_leave_this_machine(url: str, mode: str, allowed: bool) -> None:
+    if allowed:
+        rw.assert_server_allowed(url, mode)
+    else:
+        with pytest.raises(SystemExit, match="must be on this machine"):
+            rw.assert_server_allowed(url, mode)
+
+
+def test_load_config_refuses_the_live_site_in_a_dev_checkout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    for var in ("SERVER_URL", "WORKER_TOKEN", "WORKER_ID", "TRANSCRIBER", "WORKER_MODE"):
+        monkeypatch.delenv(var, raising=False)
+    env = tmp_path / "worker.env"
+    env.write_text("SERVER_URL=https://calls.tqc4.ai\nWORKER_TOKEN=abc\n")
+    with pytest.raises(SystemExit, match="must be on this machine"):
+        rw.load_config(env)
 
 
 @pytest.mark.parametrize("hint, name", [("c1.mp3", "audio.mp3"), ("c1.WAV", "audio.WAV"),

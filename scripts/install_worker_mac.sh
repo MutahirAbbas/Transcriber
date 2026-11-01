@@ -55,6 +55,8 @@ fi
 
 [[ -x "$PY" ]] || { echo "No venv python at $PY: create .venv first (README → Setup)." >&2; exit 1; }
 [[ -f "$REPO/worker.env" ]] || { echo "Missing $REPO/worker.env: copy worker.env.example and fill it in." >&2; exit 1; }
+grep -qx 'WORKER_MODE=remote-production' "$REPO/worker.env" \
+  || { echo "This installs THE worker agent, replacing any other checkout's. It needs WORKER_MODE=remote-production in worker.env; for a dev checkout run python -m worker.remote_worker instead." >&2; exit 1; }
 chmod 600 "$REPO/worker.env"
 (cd "$REPO" && "$PY" -c "import httpx, mlx_whisper, worker.remote_worker") \
   || { echo "The venv is missing worker dependencies: pip install -r requirements-mac.txt" >&2; exit 1; }
