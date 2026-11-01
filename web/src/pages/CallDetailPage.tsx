@@ -9,7 +9,7 @@ import { Findings } from '../components/detail/Findings'
 import { Player } from '../components/detail/Player'
 import { Transcript, type TranscriptHandle } from '../components/detail/Transcript'
 import { BackIcon, WarnIcon } from '../components/Icons'
-import { agentNameOf, feedbackText } from '../lib/feedback'
+import { agentNameOf, canCopyFeedback, feedbackText } from '../lib/feedback'
 import { categoryLabel, formatDuration, formatWhen, modelShort, money, outcomeLabel } from '../lib/format'
 import { isInProgress, stageText } from '../lib/stage'
 import { buildTurns, findingTime, phaseSpans } from '../lib/transcript'
@@ -297,7 +297,7 @@ export function CallDetailPage() {
         call={call}
         actions={
           <>
-            {call.score && !working && <CopyFeedback call={call} className={`${btnPrimary} w-full`} onCopied={onCopied} />}
+            {canCopyFeedback(call) && !working && <CopyFeedback call={call} className={`${btnPrimary} w-full`} onCopied={onCopied} />}
             {rescoreBtn(`${btnSecondary} w-full`)}
             {rescore.isError && <p role="alert" className="m-0 text-sm text-rust">{rescore.error.message}</p>}
           </>

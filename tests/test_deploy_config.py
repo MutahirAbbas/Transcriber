@@ -108,7 +108,7 @@ def test_health_needs_no_login(settings: Settings) -> None:
         assert c.get("/api/calls").status_code == 401
 
 
-def test_the_server_never_needs_the_mac_only_libraries() -> None:
+def test_the_server_never_needs_the_mac_only_libraries(tmp_path: Path) -> None:
     # transcribers/ is in the image; diarization and waveforms must only load their libraries when used
     import subprocess
     import sys
@@ -116,7 +116,7 @@ def test_the_server_never_needs_the_mac_only_libraries() -> None:
             "print([m for m in ('torch', 'pyannote', 'numpy', 'mlx', 'mlx_whisper') if m in sys.modules])")
     out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, check=True,
                          env={"PATH": "/usr/bin:/bin:/opt/homebrew/bin", "WORKER_MODE": "remote", "WORKER_TOKEN": "t",
-                              "SESSION_SECRET": "s", "CALLBENCH_DB": "/tmp/call-bench-import-check.db"})
+                              "SESSION_SECRET": "s", "CALLBENCH_DB": str(tmp_path / "check.db")})
     assert out.stdout.strip().endswith("[]")
     packages = (ROOT / "requirements-server.txt").read_text()
     assert "pyannote" not in packages and "torch" not in packages

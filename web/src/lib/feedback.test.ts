@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { CallDetail } from '../api/types'
-import { feedbackText, scrub } from './feedback'
+import { canCopyFeedback, feedbackText, scrub } from './feedback'
 
 const people = {
   customer: { first_name: 'Gary', last_name: 'Jones', age: 75, state: 'Maryland' },
@@ -12,7 +12,8 @@ describe('scrub', () => {
   it.each([
     ['Gary Jones said no.', 'the customer said no.'],
     ['Then Mr. Jones paused.', 'Then the customer paused.'],
-    ['Reflect Gary’s own words.', 'Reflect the customer’s own words.'],
+    ["Reflect Gary's own words.", "Reflect the customer's own words."],
+    ['Reflect Gary’s own words.', "Reflect the customer's own words."],
     ['GARY hung up.', 'the customer hung up.'],
     ['He lives in Maryland.', 'He lives in their state.'],
     ['A grieving 75-year-old diabetic.', 'A grieving diabetic.'],
@@ -26,6 +27,15 @@ describe('scrub', () => {
     ['Quoted 11,000 dollars.', 'Quoted [amount].'],
     ['Quoted eleven thousand dollars today.', 'Quoted [amount] today.'],
     ['A policy of 11000 was sold, 113 monthly.', 'A policy of [amount] was sold, [amount] monthly.'],
+    ['An eleven thousand policy.', 'An [amount] policy.'],
+    ['Twenty-five thousand in cover.', '[amount] in cover.'],
+    ['About 50k of cover.', 'About [amount] of cover.'],
+    ['Quoted 50,000 first.', 'Quoted [amount] first.'],
+    ['A 75 yo man.', 'A man.'],
+    ['A 68 y.o. man.', 'A man.'],
+    ['He is 80 years of age.', 'He is [age].'],
+    ['A sixty-two year old man.', 'A man.'],
+    ['He lives in MD now.', 'He lives in their state now.'],
   ])('%s', (input, expected) => {
     expect(scrub(input, people)).toBe(expected)
   })
@@ -37,6 +47,29 @@ describe('scrub', () => {
 
   it('does not touch a word that merely contains a name', () => {
     expect(scrub('Garyville is not Gary.', people)).toBe('Garyville is not the customer.')
+  })
+
+  it('catches names with accented letters at either end', () => {
+    const accented = { customer: { first_name: 'Émile', last_name: 'Zoë', age: null, state: null }, sale: null }
+    expect(scrub('Then Émile Zoë spoke. Émile agreed, and Mrs. Zoë left.', accented)).toBe(
+      'Then the customer spoke. the customer agreed, and the customer left.')
+    expect(scrub('Émiles is someone else.', accented)).toBe('Émiles is someone else.')
+  })
+
+  it('treats a state given as an abbreviation the same as its name', () => {
+    const abbreviated = { customer: { first_name: 'Gary', last_name: null, age: null, state: 'MD' }, sale: null }
+    expect(scrub('From Maryland, or MD.', abbreviated)).toBe('From their state, or their state.')
+  })
+
+  it('never turns the ordinary word "or" into a state', () => {
+    const oregon = { customer: { first_name: 'Gary', last_name: null, age: null, state: 'Oregon' }, sale: null }
+    expect(scrub('Budget or coverage, in OR.', oregon)).toBe('Budget or coverage, in their state.')
+  })
+
+  it('scrubs a customer name the speakers list knows, but not the agent', () => {
+    const shown = { customer: { first_name: 'Gary', last_name: null, age: null, state: null }, sale: null, agent: { id: 1, name: 'Josh' },
+      speakers: { SPEAKER_0: 'Josh', SPEAKER_1: 'Gaz' } }
+    expect(scrub('Josh told Gaz.', shown)).toBe('Josh told the customer.')
   })
 
   it('still catches amounts and ages when customer and sale are null', () => {
@@ -75,8 +108,20 @@ describe('feedbackText', () => {
     }
   })
 
-  it('works before a name is known', () => {
+  it('leaves the summary and intro out when the customer’s name is unknown, rather than risk it', () => {
     const anon = feedbackText({ ...call, agent: null, suggested_agent: null, customer: null, sale: null })
     expect(anon.split('\n')[0]).toBe('Call feedback')
+    expect(anon).toContain('Summary left out')
+    expect(anon).not.toContain('Gary')
+    expect(anon).not.toContain('Maryland')
+    expect(anon).not.toContain('needed care')
+    const noName = feedbackText({ ...call, customer: { first_name: null, last_name: 'Jones', age: 75, state: null } })
+    expect(noName).toContain('Summary left out')
+  })
+
+  it('isn’t offered for an old-format score, which has no customer record to scrub against', () => {
+    expect(canCopyFeedback({ score: call.score, scored_v2: false })).toBe(false)
+    expect(canCopyFeedback({ score: call.score, scored_v2: true })).toBe(true)
+    expect(canCopyFeedback({ score: null, scored_v2: true })).toBe(false)
   })
 })
