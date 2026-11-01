@@ -107,6 +107,17 @@ runs (bank / routing / policy numbers), Medicare IDs, dates of birth and emails,
 typed or spoken. It is regex-based, so customer **names and street addresses are
 not removed**, and the audio itself is untouched.
 
+## Before deploying v2 (not done yet)
+
+The Mac serving the live site needs these in its `worker.env`, and `pip install -r requirements-mac.txt`
+in its venv, before it runs v2 code:
+
+- `WORKER_MODE=remote-production`: without it the worker refuses any server but this machine.
+- `DIARIZER=pyannote` and `HF_TOKEN=…`, from an account that has accepted
+  https://huggingface.co/pyannote/speaker-diarization-community-1
+
+Then run `scripts/upgrade_calls_v2.py --dry-run` on the server to see what the upgrade would do.
+
 ## Roadmap
 
 - [x] Design the upload → transcript → analysis interface
