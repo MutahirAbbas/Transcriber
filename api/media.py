@@ -86,6 +86,20 @@ def find_audio(directory: Path, call_id: str) -> Path | None:
     return next(iter(sorted(directory.glob(f"{call_id}.*"))), None)
 
 
+def clip_audio(path: Path, seconds: float) -> None:
+    """Keep only the first `seconds` of a file, in place. Stream copy: no re-encode, no quality loss."""
+    tmp = path.with_name(f"{path.stem}.clip{path.suffix}")
+    try:
+        subprocess.run(
+            ["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", str(path), "-t", f"{seconds:.3f}", "-c", "copy", str(tmp)],
+            check=True, capture_output=True, timeout=300,
+        )
+        tmp.replace(path)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+        tmp.unlink(missing_ok=True)
+        raise UnreadableAudio("Could not cut the recording to length") from e
+
+
 class UnreadableAudio(Exception):
     pass
 

@@ -24,7 +24,11 @@ def make_engine(db_path: Path) -> Engine:
         cur.close()
 
     SQLModel.metadata.create_all(engine)
-    if "calls.overall_score" in add_missing_columns(engine):
+    add_missing = add_missing_columns(engine)
+    with engine.begin() as conn:   # the same call handed over twice must never become two rows
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_calls_external_id ON calls (external_id) "
+                          "WHERE external_id IS NOT NULL"))
+    if "calls.overall_score" in add_missing:
         with engine.begin() as conn:   # one time: calls scored before the column existed
             conn.execute(text("UPDATE calls SET overall_score = CAST(ROUND(json_extract(score_json, '$.overall_score')) AS INTEGER) "
                               "WHERE score_json IS NOT NULL AND json_valid(score_json)"))

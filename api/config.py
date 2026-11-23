@@ -37,6 +37,7 @@ class Settings:
     # remote: never transcribes here — a Mac worker claims calls over /api/worker; we only score.
     worker_mode: str = "local"
     worker_token: str | None = None          # bearer token for /api/worker/*; unset = worker API refuses all
+    ingest_token: str | None = None          # bearer token for /api/ingest/*; unset = that door refuses all
     keywords_path: Path = ROOT / "data" / "keywords.txt"   # sent to the worker with each claim
     session_secret: str | None = None        # signs the login cookie; required whenever auth is on
     auth_disabled: bool = False              # AUTH_DISABLED=1: honoured in local mode only
@@ -66,6 +67,7 @@ def load_settings() -> Settings:
         scorecard_path=ROOT / "scoring" / "scorecard.yaml",
         worker_mode=mode,
         worker_token=os.environ.get("WORKER_TOKEN") or None,
+        ingest_token=os.environ.get("INGEST_TOKEN") or None,
         keywords_path=Path(os.environ.get("CALLBENCH_KEYWORDS", ROOT / "data" / "keywords.txt")),
         session_secret=os.environ.get("SESSION_SECRET") or None,
         auth_disabled=os.environ.get("AUTH_DISABLED", "").strip().lower() in ("1", "true", "yes"),

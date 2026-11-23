@@ -35,6 +35,7 @@ DEFAULT_RTF = repo.DEFAULT_RTF
 TICK_S = 2.0
 MAX_TRANSCRIBE_PROGRESS = 0.9
 SCORING_PROGRESS = 0.95
+MAX_SCORE_ATTEMPTS = 3      # handed-over calls only: nobody is watching to press Re-score
 
 Job = tuple[str, str]
 
@@ -143,7 +144,7 @@ class Worker:
                     self._remove_cancelled(call_id)
                 except Exception as exc:
                     log.exception("call %s failed (%s)", call_id, mode)
-                    if not self._remove_cancelled(call_id):
+                    if not self._remove_cancelled(call_id) and not self._retry_scoring(call_id, mode):
                         self._update(call_id, status=CallStatus.error, error=str(exc) or type(exc).__name__)
             finally:
                 self.jobs.task_done()
@@ -220,13 +221,41 @@ class Worker:
                 call.waveform = json.dumps(waveform)
             if score.get("parse_error"):
                 # keep the transcript (and any earlier score) so Re-score can retry
-                call.status, call.error = CallStatus.error, f"Scoring failed: {score.get('reason', 'unknown')}"
+                reason = f"Scoring failed: {score.get('reason', 'unknown')}"
+                if call.source != "upload" and call.score_attempts + 1 < MAX_SCORE_ATTEMPTS:
+                    call.score_attempts += 1
+                    call.error = reason
+                    s.add(call)
+                    s.commit()
+                    self.jobs.put((call_id, "rescore"))
+                    return
+                call.score_attempts += 1
+                call.status, call.error = CallStatus.error, reason
             else:
                 # the scorer only saw redacted text; this is belt and braces
                 repo.apply_score(s, call, redact_score(score))
                 call.status, call.progress, call.error = CallStatus.done, 1.0, None
+                if call.source != "upload":   # the sender keeps the recording; we keep only the masked text
+                    for path in self.uploads_dir.glob(f"{call.id}.*"):
+                        path.unlink(missing_ok=True)
             s.add(call)
             s.commit()
+
+    def _retry_scoring(self, call_id: str, mode: str) -> bool:
+        """A handed-over call whose scoring blew up goes round again, a few times at most."""
+        if mode != "rescore":
+            return False
+        with Session(self.engine) as s:
+            call = s.get(Call, call_id)
+            if call is None or call.source == "upload" or call.transcript_json is None:
+                return False
+            call.score_attempts += 1
+            again = call.score_attempts < MAX_SCORE_ATTEMPTS
+            s.add(call)
+            s.commit()
+        if again:
+            self.jobs.put((call_id, "rescore"))
+        return again
 
     def _cancelled(self, call_id: str) -> bool:
         with Session(self.engine) as s:

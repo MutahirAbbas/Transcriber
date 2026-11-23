@@ -17,7 +17,7 @@ from api.config import ROOT, Settings, load_scorecard, load_settings  # loads .e
 from api.db import make_engine
 from api.leases import LeaseReaper
 from api.ratelimit import RateLimiter
-from api.routes import auth as auth_routes, calls, meta, worker as worker_routes
+from api.routes import auth as auth_routes, calls, ingest, meta, worker as worker_routes
 from api.users import UserError, ensure_env_user
 from api.worker import Scorer, Worker
 from transcribers import get_transcriber
@@ -127,6 +127,8 @@ def create_app(
     app.include_router(auth_routes.router, prefix="/api")   # login is public; /me checks itself
     app.include_router(calls.router, prefix="/api", dependencies=signed_in)
     app.include_router(meta.router, prefix="/api", dependencies=signed_in)
+    app.state.ingest_limiter = RateLimiter(rate=5, burst=20)   # per client IP
+    app.include_router(ingest.router, prefix="/api")       # its own bearer token, not the user login
     if settings.remote:
         app.state.worker_limiter = RateLimiter(rate=5, burst=20)   # per client IP
         app.include_router(worker_routes.router, prefix="/api")

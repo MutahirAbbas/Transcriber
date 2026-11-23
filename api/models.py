@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from enum import Enum
 
+from sqlalchemy import event, inspect
 from sqlmodel import Field, SQLModel
 
 
@@ -65,6 +66,26 @@ class Call(SQLModel, table=True):
     scorer_version: str | None = None
     score_history: str | None = None       # JSON list: earlier scores, oldest first
     cancelled_at: datetime | None = None   # asked to stop; the row goes when the job does
+    # Calls handed over by another system (see api.routes.ingest). `upload` rows leave these alone.
+    source: str = Field(default="upload", sa_column_kwargs={"server_default": "'upload'"})   # upload | tqc
+    external_id: str | None = Field(default=None, index=True)   # the sender's own id for this call; one row each
+    external_meta: str | None = None       # JSON object the sender wants back with the review
+    is_test: bool = Field(default=False, sa_column_kwargs={"server_default": "0"})    # made from a test system
+    backlog: bool = Field(default=False, sa_column_kwargs={"server_default": "0"})    # waits behind every new call
+    score_attempts: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
+    finished_at: datetime | None = Field(default=None, index=True)   # last time it reached done / error
+
+
+@event.listens_for(Call, "before_insert")
+@event.listens_for(Call, "before_update")
+def _stamp_finished(_mapper, _connection, call: Call) -> None:  # type: ignore[no-untyped-def]
+    """`finished_at` moves every time a call lands on done or error, or is scored again, so
+    "what changed since X" never misses a result."""
+    if call.status not in TERMINAL:
+        return
+    attrs = inspect(call).attrs
+    if any(attrs[name].history.has_changes() for name in ("status", "score_json", "error")):
+        call.finished_at = utcnow()
 
 
 class User(SQLModel, table=True):

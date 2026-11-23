@@ -1,6 +1,7 @@
 """Remote mode: leases on queued calls for the Mac transcription worker.
 
-A worker claims the oldest queued call that has no transcript; the claim is a
+A worker claims the oldest queued call that has no transcript (backlog calls only once no
+new call is waiting); the claim is a
 lease (15 min, renewed by heartbeats). If the lease runs out, or the worker
 reports a failure, the call goes back to the queue — until it has been tried
 MAX_ATTEMPTS times, then it's an error.
@@ -41,7 +42,7 @@ def claim(engine: Engine, worker_id: str, now: datetime | None = None) -> Call |
             call_id = s.exec(
                 select(Call.id)
                 .where(Call.status == CallStatus.queued, col(Call.transcript_json).is_(None))
-                .order_by(col(Call.uploaded_at)).limit(1)
+                .order_by(col(Call.backlog), col(Call.uploaded_at)).limit(1)   # new calls before backlog
             ).first()
             if call_id is None:
                 return None
