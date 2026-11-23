@@ -74,7 +74,7 @@ def test_a_missing_required_phrase_adds_its_flag() -> None:
                                         {"phrase": "licensed agent", "present": True, "timestamp": "00:02"}]))
     added = [f for f in out["findings"] if f["kind"] == "flag"]
     assert [f["flag_type"] for f in added] == ["no_recording_disclosure"]
-    assert added[0]["severity"] == "critical" and added[0]["timestamp"] == "00:00"
+    assert added[0]["severity"] == "major" and added[0]["timestamp"] == "00:00"
 
 
 def test_a_missing_phrase_does_not_double_a_flag_the_model_raised() -> None:
@@ -131,10 +131,12 @@ def test_the_cap_only_lowers() -> None:
     assert out["scores"]["compliance"] == {"score": 2, "evidence": "e"}
 
 
-def test_a_missing_phrase_flag_also_triggers_the_cap() -> None:
+def test_a_missing_phrase_flag_is_shown_but_no_longer_caps_the_score() -> None:
+    plain = norm(answer())
     out = norm(answer(required_phrases=[{"phrase": "recorded line", "present": False, "timestamp": None},
                                         {"phrase": "licensed agent", "present": True, "timestamp": "00:02"}]))
-    assert out["scores"]["compliance"]["score"] == 3
+    assert out["scores"]["compliance"] == plain["scores"]["compliance"] and "capped_from" not in out["scores"]["compliance"]
+    assert out["overall_score"] == plain["overall_score"]
 
 
 def test_customer_and_sale_may_be_null() -> None:
@@ -292,7 +294,7 @@ def test_scorer_version_is_card_version_and_prompt_hash(scorer: CallScorer) -> N
     import hashlib
     stub(scorer, message(text(answer())))
     version = scorer.score(RES)["_meta"]["scorer_version"]
-    assert version == "3." + hashlib.sha256(scorer.system.encode()).hexdigest()[:8]
+    assert version == f"{scorer.card['version']}." + hashlib.sha256(scorer.system.encode()).hexdigest()[:8]
 
 
 def test_only_the_first_text_block_is_read(scorer: CallScorer) -> None:

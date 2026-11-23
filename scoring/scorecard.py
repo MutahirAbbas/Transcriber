@@ -43,6 +43,10 @@ def _problems(card: dict[str, Any]) -> list[str]:
     out += [f"coach type {c.get('id')} has no label" for c in coach if not c.get("label")]
     out += [f"coach type {c['id']} maps to unknown category {c.get('category')}"
             for c in coach if c.get("id") != OTHER_COACH and c.get("category") not in cats]
+    signals = card.get("retention_signals") or []
+    if len({s.get("id") for s in signals}) != len(signals):
+        out.append("retention_signals ids must be unique")
+    out += [f"retention signal {s.get('id')} has no label" for s in signals if not s.get("label")]
     cap = card.get("compliance_cap") or {}
     if "compliance" not in cats or cap.get("if_any") not in SEVERITIES or "max_score" not in cap:
         out.append("compliance_cap needs a compliance category, if_any and max_score")

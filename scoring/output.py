@@ -196,6 +196,30 @@ def _phases(value: Any, card: dict[str, Any]) -> list[dict[str, str]]:
     return sorted(out, key=lambda p: timestamp_s(p["start"]))    # stable: a repeat phase keeps its place
 
 
+ANSWERS = ("yes", "no", "unclear")
+
+
+def _retention(value: Any, card: dict[str, Any], outcome: str) -> list[dict[str, Any]] | None:
+    """One answer per scorecard signal, for sales only. Lenient on purpose: a signal the model
+    skipped or answered oddly is "unclear", because a missing fact must never fail a whole review."""
+    signals = card.get("retention_signals") or []
+    if outcome != "sale" or not signals:
+        return None
+    given = {r.get("signal"): r for r in value if isinstance(r, dict)} if isinstance(value, list) else {}
+    out = []
+    for signal in signals:
+        entry = given.get(signal["id"]) or {}
+        answer = entry.get("answer") if entry.get("answer") in ANSWERS else "unclear"
+        stamp = None
+        if answer != "unclear" and isinstance(entry.get("timestamp"), str):
+            try:
+                stamp = _mmss(entry["timestamp"], "retention")
+            except ScoreInvalid:
+                stamp = None
+        out.append({"signal": signal["id"], "answer": answer, "timestamp": stamp})
+    return out
+
+
 def _work_on_next(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict) or not isinstance(value.get("items"), list):
         raise ScoreInvalid("work_on_next missing")
@@ -251,6 +275,7 @@ def _normalize(data: Any, card: dict[str, Any], speakers: Collection[str]) -> di
         "phases": _phases(data.get("phases"), card),
         "findings": findings,
         "required_phrases": phrases,
+        "retention": _retention(data.get("retention"), card, outcome),
         "work_on_next": _work_on_next(data.get("work_on_next")),
         "_meta": {"dropped_flags": dropped},
     }

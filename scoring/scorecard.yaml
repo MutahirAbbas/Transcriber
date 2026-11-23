@@ -1,7 +1,7 @@
 # Final-expense sales call scorecard.
 # This is a STARTER. The real one comes from Leo / the top closers — replace freely.
 # Each category: label, weight (sums to 100) and what a 10 vs a 3 looks like.
-version: 3
+version: 4
 target_score: 60
 
 categories:
@@ -49,8 +49,10 @@ categories:
 
 # The ONLY flags the scorer may raise. Anything else is dropped after it answers.
 flag_types:
-  - {id: no_recording_disclosure,   label: "No recording disclosure",              severity: critical}
-  - {id: no_licensed_statement,     label: "No licensed-agent statement",          severity: critical}
+  # major, not critical: the notice is not always the closer's to give (it can be played before
+  # the call reaches them), so its absence is shown to a manager but does not cap the score.
+  - {id: no_recording_disclosure,   label: "No recording disclosure",              severity: major}
+  - {id: no_licensed_statement,     label: "No licensed-agent statement",          severity: major}
   - {id: approval_before_uw,        label: "Approval promised before underwriting", severity: critical}
   - {id: agent_handled_esign,       label: "Agent handled the customer's e-signature or code", severity: critical}
   - {id: ignored_end_request,       label: "Continued after a request to end the call", severity: critical}
@@ -86,6 +88,21 @@ coach_types:
   - {id: details_not_read_back,     category: close,              label: "Read the details back before you finish",
      try: "Let me read that back to make sure I have it right."}
   - {id: other,                     category: general,            label: "Something else worth coaching"}
+
+# Asked only about calls that ended in a sale: facts about the sale that may tell whether the
+# customer keeps the policy. The scorer answers yes / no / unclear for each and never predicts;
+# what these answers mean is worked out later from what really happened to each policy.
+retention_signals:
+  - {id: confirmed_amount,      label: "The customer repeated or confirmed the monthly amount"}
+  - {id: said_affordable,       label: "The customer said the amount is comfortable"}
+  - {id: hesitated_on_price,    label: "The customer hesitated or pushed back on the price"}
+  - {id: draft_date_fits_income, label: "The draft date was tied to when their income arrives"}
+  - {id: knows_carrier,         label: "The customer was told the carrier's name and acknowledged it"}
+  - {id: knows_coverage_start,  label: "The customer was told when coverage starts and about any waiting period"}
+  - {id: family_involved,       label: "A spouse or family member took part or was named as a decision maker"}
+  - {id: replacing_coverage,    label: "Existing coverage is being replaced"}
+  - {id: unsure_at_close,       label: "The customer sounded unsure or rushed at the close"}
+  - {id: details_read_back,     label: "The agent read the details back before finishing"}
 
 # Each maps to the flag raised when it's missing.
 required_phrases:

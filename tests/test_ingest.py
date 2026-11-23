@@ -495,7 +495,8 @@ def test_a_review_carries_the_habit_list_with_its_approved_lines_and_the_weights
     hand_over("opp1:rec1")
     _finish(app, settings, "tqc-opp1-rec1")
     card = client.get("/api/ingest/calls/opp1:rec1", headers=H).json()["scorecard"]
-    assert card["version"] == 3
+    assert card["version"] == app.state.scorecard.version
+    assert {"id": "knows_carrier", "label": "The customer was told the carrier's name and acknowledged it"} in card["retention_signals"]
     habit = next(c for c in card["coach_types"] if c["id"] == "callback_without_time")
     assert habit["label"] == "Give every callback a day and a time" and habit["try"].startswith("Does Thursday")
     assert sum(c["weight"] for c in card["categories"]) == 100
@@ -519,3 +520,58 @@ def test_a_bad_habit_list_stops_the_app_at_startup(tmp_path: Path, broken: list,
     path.write_text(yaml.safe_dump(card))
     with pytest.raises(ValueError, match=problem):
         load_card(path)
+
+
+# ---- the sale check ------------------------------------------------------------------
+
+def _answer(card: dict, **over: Any) -> dict:
+    out = v2_score()
+    out["scores"] = {key: {"score": 6, "evidence": "e"} for key in card["categories"]}
+    out["required_phrases"] = [{"phrase": r["phrase"], "present": True, "timestamp": "00:05"} for r in card["required_phrases"]]
+    out["findings"] = []
+    return {**out, **over}
+
+
+def test_a_sale_gets_one_answer_per_signal_and_anything_odd_is_unclear() -> None:
+    from scoring.output import normalize_score
+    from scoring.scorecard import load_card
+    from api.config import ROOT
+    card = load_card(ROOT / "scoring" / "scorecard.yaml")
+    given = [{"signal": "knows_carrier", "answer": "yes", "timestamp": "12:36"},
+             {"signal": "unsure_at_close", "answer": "maybe", "timestamp": "20:00"},
+             {"signal": "confirmed_amount", "answer": "no", "timestamp": "not a time"},
+             {"signal": "made_up", "answer": "yes", "timestamp": "01:00"}]
+    out = normalize_score(_answer(card, retention=given), card, speakers={"SPEAKER_0"})["retention"]
+    assert [r["signal"] for r in out] == [s["id"] for s in card["retention_signals"]]
+    by = {r["signal"]: r for r in out}
+    assert by["knows_carrier"] == {"signal": "knows_carrier", "answer": "yes", "timestamp": "12:36"}
+    assert by["unsure_at_close"] == {"signal": "unsure_at_close", "answer": "unclear", "timestamp": None}
+    assert by["confirmed_amount"] == {"signal": "confirmed_amount", "answer": "no", "timestamp": None}
+    assert by["details_read_back"]["answer"] == "unclear" and "made_up" not in by
+
+
+def test_a_call_that_was_not_a_sale_has_no_sale_check_whatever_the_model_says() -> None:
+    from scoring.output import normalize_score
+    from scoring.scorecard import load_card
+    from api.config import ROOT
+    card = load_card(ROOT / "scoring" / "scorecard.yaml")
+    given = [{"signal": "knows_carrier", "answer": "yes", "timestamp": "12:36"}]
+    out = normalize_score(_answer(card, call_outcome="callback", sale=None, retention=given), card, speakers={"SPEAKER_0"})
+    assert out["retention"] is None
+
+
+def test_the_sale_check_never_fails_a_review_when_it_is_missing_altogether() -> None:
+    from scoring.output import normalize_score
+    from scoring.scorecard import load_card
+    from api.config import ROOT
+    card = load_card(ROOT / "scoring" / "scorecard.yaml")
+    out = normalize_score(_answer(card), card, speakers={"SPEAKER_0"})["retention"]
+    assert {r["answer"] for r in out} == {"unclear"}
+
+
+def test_only_the_three_serious_flags_can_cap_the_score() -> None:
+    from scoring.scorecard import load_card
+    from api.config import ROOT
+    card = load_card(ROOT / "scoring" / "scorecard.yaml")
+    assert sorted(f["id"] for f in card["flag_types"] if f["severity"] == "critical") == [
+        "agent_handled_esign", "approval_before_uw", "ignored_end_request"]

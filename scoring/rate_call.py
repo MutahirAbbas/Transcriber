@@ -80,6 +80,7 @@ class CallScorer:
             for r in card["required_phrases"]
         )
         phases = "\n".join(f"- {p['id']}: {p['label']}" for p in card["phases"])
+        signals = "\n".join(f"- {s['id']}: {s['label']}" for s in card.get("retention_signals") or [])
         habits = "\n".join(f"- {c['id']} ({c['category']}): {c['label']}" for c in card["coach_types"])
         return f"""You are a QA coach for a final-expense life insurance call center. You score
 recorded sales calls against a fixed scorecard and produce coaching notes a team lead
@@ -116,6 +117,12 @@ COACHING TYPES. Every "coach" finding names the one habit it is an example of, a
 using only these ids. Use "other" when none fits; never stretch a habit to fit:
 {habits}
 
+SALE CHECK. Only when `call_outcome` is "sale": answer every item below with "yes", "no" or
+"unclear", and the timestamp of the moment that shows it (null when "unclear" or when it never
+happened). These are facts about what was said, not a judgement of the agent and not a
+prediction. When the outcome is anything else, `retention` is null:
+{signals}
+
 NEVER INVENT. `customer` and `sale` fields are null unless they were said on the call. `sale` is
 null unless the outcome is "sale". `agent_name` is null unless the agent says it.
 
@@ -144,6 +151,7 @@ object of this shape, no prose before or after:
     {{ "kind": "good", "category": "<category>", "timestamp": "mm:ss", "text": "..." }}
   ],
   "required_phrases": [ {{ "phrase": "...", "present": true, "timestamp": "mm:ss" }} ],
+  "retention": [ {{ "signal": "<signal id>", "answer": "yes" | "no" | "unclear", "timestamp": "mm:ss" }} ],
   "work_on_next": {{ "intro": "...", "items": ["..."] }}
 }}"""
 

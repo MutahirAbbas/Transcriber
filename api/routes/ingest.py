@@ -191,6 +191,7 @@ def _review(request: Request, session: Session, call: Call) -> dict[str, Any]:
         "phases": derive.parse_json(call.phases) or [],
         "required_phrases": score.get("required_phrases") or [],
         "work_on_next": score.get("work_on_next"),
+        "retention": score.get("retention"),
         "speaker_map": derive.speaker_map(score, transcript),
         "transcript": {
             "segments": [{"start": seg.get("start"), "end": seg.get("end"), "speaker": seg.get("speaker"),
@@ -213,6 +214,7 @@ def _review(request: Request, session: Session, call: Call) -> dict[str, Any]:
                            for key in card.categories],
             "phases": card.phases, "required_phrases": card.required_phrases,
             "flag_types": card.flag_types, "coach_types": card.coach_types, "compliance_cap": card.compliance_cap,
+            "retention_signals": card.retention_signals,
         },
     }
 

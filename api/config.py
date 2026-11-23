@@ -26,6 +26,7 @@ class Scorecard:
     flag_types: list[dict] = field(default_factory=list)     # {id, label, severity}
     coach_types: list[dict] = field(default_factory=list)    # {id, category, label, try?, try_es?}
     compliance_cap: dict = field(default_factory=dict)
+    retention_signals: list[dict] = field(default_factory=list)   # {id, label}
 
 
 WORKER_MODES = ("local", "remote")
@@ -93,4 +94,5 @@ def load_scorecard(path: Path) -> Scorecard:
         flag_types=card["flag_types"],
         coach_types=card.get("coach_types") or [],
         compliance_cap=card["compliance_cap"],
+        retention_signals=card.get("retention_signals") or [],
     )
