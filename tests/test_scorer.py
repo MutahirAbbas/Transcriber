@@ -69,19 +69,40 @@ def test_flags_carry_severity_and_label_from_the_scorecard_not_the_model() -> No
     assert (f["severity"], f["label"]) == ("major", "Fear, shame or pressure tactics")
 
 
-def test_a_missing_required_phrase_adds_its_flag() -> None:
-    out = norm(answer(required_phrases=[{"phrase": "recorded line", "present": False, "timestamp": None},
-                                        {"phrase": "licensed agent", "present": True, "timestamp": "00:02"}]))
+# A card where the two phrases DO raise flags: the mechanism stays, though the real scorecard no
+# longer uses it for these two.
+FLAGGING = {
+    **CARD,
+    "flag_types": [*CARD["flag_types"],
+                   {"id": "no_recording_disclosure", "label": "No recording disclosure", "severity": "major"},
+                   {"id": "no_licensed_statement", "label": "No licensed-agent statement", "severity": "major"}],
+    "required_phrases": [{"phrase": "recorded line", "flag": "no_recording_disclosure", "before_personal_data": True},
+                         {"phrase": "licensed agent", "flag": "no_licensed_statement", "before_personal_data": True}],
+}
+MISSING_ONE = [{"phrase": "recorded line", "present": False, "timestamp": None},
+               {"phrase": "licensed agent", "present": True, "timestamp": "00:02"}]
+
+
+def test_a_missing_required_phrase_adds_its_flag_when_the_scorecard_maps_one() -> None:
+    out = normalize_score(answer(required_phrases=MISSING_ONE), FLAGGING, speakers={"SPEAKER_0", "SPEAKER_1"})
     added = [f for f in out["findings"] if f["kind"] == "flag"]
     assert [f["flag_type"] for f in added] == ["no_recording_disclosure"]
     assert added[0]["severity"] == "major" and added[0]["timestamp"] == "00:00"
 
 
 def test_a_missing_phrase_does_not_double_a_flag_the_model_raised() -> None:
-    out = norm(answer(findings=[flag("no_recording_disclosure", "00:30")],
-                      required_phrases=[{"phrase": "recorded line", "present": False, "timestamp": None},
-                                        {"phrase": "licensed agent", "present": True, "timestamp": "00:02"}]))
+    out = normalize_score(answer(findings=[flag("no_recording_disclosure", "00:30")], required_phrases=MISSING_ONE),
+                          FLAGGING, speakers={"SPEAKER_0", "SPEAKER_1"})
     assert [(f["flag_type"], f["timestamp"]) for f in out["findings"]] == [("no_recording_disclosure", "00:30")]
+
+
+def test_on_the_real_scorecard_a_missing_phrase_is_reported_and_raises_nothing() -> None:
+    out = norm(answer(required_phrases=MISSING_ONE))
+    assert [f for f in out["findings"] if f["kind"] == "flag"] == []
+    assert out["required_phrases"] == [{"phrase": "recorded line", "present": False, "timestamp": None},
+                                       {"phrase": "licensed agent", "present": True, "timestamp": "00:02"}]
+    # and the scorer may no longer raise the two as flags on its own
+    assert [f for f in norm(answer(findings=[flag("no_recording_disclosure")]))["findings"] if f["kind"] == "flag"] == []
 
 
 @pytest.mark.parametrize("phrases", [
@@ -131,7 +152,7 @@ def test_the_cap_only_lowers() -> None:
     assert out["scores"]["compliance"] == {"score": 2, "evidence": "e"}
 
 
-def test_a_missing_phrase_flag_is_shown_but_no_longer_caps_the_score() -> None:
+def test_a_missing_phrase_never_changes_the_score() -> None:
     plain = norm(answer())
     out = norm(answer(required_phrases=[{"phrase": "recorded line", "present": False, "timestamp": None},
                                         {"phrase": "licensed agent", "present": True, "timestamp": "00:02"}]))

@@ -75,6 +75,7 @@ class Call(SQLModel, table=True):
     score_attempts: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     finished_at: datetime | None = Field(default=None, index=True)   # last time it reached done / error
     started_at: datetime | None = None     # when a transcriber last picked it up
+    known_sale: bool = Field(default=False, sa_column_kwargs={"server_default": "0"})   # the sender's record says application
 
 
 @event.listens_for(Call, "before_insert")

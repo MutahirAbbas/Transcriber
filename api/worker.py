@@ -198,12 +198,16 @@ class Worker:
             if call is None:
                 return
             transcript = derive.parse_json(call.transcript_json)
+            known_sale = call.known_sale
         if transcript is None:
             raise ValueError("No transcript to score")
         if self._cancelled(call_id):
             raise CallCancelled
         self._update(call_id, status=CallStatus.scoring, progress=SCORING_PROGRESS, error=None)
-        self._save(call_id, transcript, self.scorer.score(result_from_dict(transcript, call_id)))
+        res = result_from_dict(transcript, call_id)
+        if known_sale:
+            res.known_sale = True    # type: ignore[attr-defined]  # read by the scorer; not part of the stored transcript
+        self._save(call_id, transcript, self.scorer.score(res))
 
     def _save(self, call_id: str, transcript: dict, score: dict, waveform: list[float] | None = None) -> None:
         with Session(self.engine) as s:

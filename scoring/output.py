@@ -170,6 +170,8 @@ def _missing_phrase_flags(phrases: list[dict[str, Any]], findings: list[dict[str
     raised = {f.get("flag_type") for f in findings}
     added = []
     for req, seen in zip(card["required_phrases"], phrases):
+        if not req.get("flag"):      # reported only
+            continue
         flag = flag_types[req["flag"]]
         if not seen["present"] and flag["id"] not in raised:
             raised.add(flag["id"])
@@ -199,11 +201,12 @@ def _phases(value: Any, card: dict[str, Any]) -> list[dict[str, str]]:
 ANSWERS = ("yes", "no", "unclear")
 
 
-def _retention(value: Any, card: dict[str, Any], outcome: str) -> list[dict[str, Any]] | None:
+def _retention(value: Any, card: dict[str, Any], outcome: str, known_sale: bool = False) -> list[dict[str, Any]] | None:
     """One answer per scorecard signal, for sales only. Lenient on purpose: a signal the model
     skipped or answered oddly is "unclear", because a missing fact must never fail a whole review."""
     signals = card.get("retention_signals") or []
-    if outcome != "sale" or not signals:
+    # the sender's own record outranks the model's reading of how the call ended
+    if (outcome != "sale" and not known_sale) or not signals:
         return None
     given = {r.get("signal"): r for r in value if isinstance(r, dict)} if isinstance(value, list) else {}
     out = []
@@ -243,14 +246,14 @@ def apply_compliance_cap(scores: dict[str, dict[str, Any]], findings: list[dict[
             entry["score"] = cap["max_score"]
 
 
-def normalize_score(data: Any, card: dict[str, Any], speakers: Collection[str] = ()) -> dict[str, Any]:
+def normalize_score(data: Any, card: dict[str, Any], speakers: Collection[str] = (), known_sale: bool = False) -> dict[str, Any]:
     try:
-        return _normalize(data, card, speakers)
+        return _normalize(data, card, speakers, known_sale)
     except (TypeError, OverflowError, AttributeError):   # a list where a string belongs, and the like
         raise ScoreInvalid("answer has the wrong shape") from None
 
 
-def _normalize(data: Any, card: dict[str, Any], speakers: Collection[str]) -> dict[str, Any]:
+def _normalize(data: Any, card: dict[str, Any], speakers: Collection[str], known_sale: bool = False) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ScoreInvalid("answer is not a JSON object")
     outcome = data.get("call_outcome")
@@ -275,7 +278,7 @@ def _normalize(data: Any, card: dict[str, Any], speakers: Collection[str]) -> di
         "phases": _phases(data.get("phases"), card),
         "findings": findings,
         "required_phrases": phrases,
-        "retention": _retention(data.get("retention"), card, outcome),
+        "retention": _retention(data.get("retention"), card, outcome, known_sale),
         "work_on_next": _work_on_next(data.get("work_on_next")),
         "_meta": {"dropped_flags": dropped},
     }

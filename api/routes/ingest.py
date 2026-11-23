@@ -82,6 +82,7 @@ def hand_over(
     is_test: Annotated[bool, Form()] = False,
     backlog: Annotated[bool, Form()] = False,
     clip_s: Annotated[float | None, Form()] = None,
+    sale: Annotated[bool, Form()] = False,
 ) -> dict[str, Any]:
     settings = request.app.state.settings
     if not _EXTERNAL_ID.match(external_id):
@@ -115,7 +116,7 @@ def hand_over(
     incoming = settings.uploads_dir / f".incoming-{secrets.token_hex(8)}{ext}"
     row = Call(id=call_id, filename=f"{call_id}{ext}", source=SOURCE, external_id=external_id,
                external_meta=json.dumps(meta_obj, ensure_ascii=False) if meta_obj is not None else None,
-               is_test=is_test, backlog=backlog)
+               is_test=is_test, backlog=backlog, known_sale=sale)
     try:
         try:
             save_upload(file.file, incoming, MAX_UPLOAD_BYTES)

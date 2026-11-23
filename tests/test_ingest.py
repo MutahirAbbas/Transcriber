@@ -575,3 +575,57 @@ def test_only_the_three_serious_flags_can_cap_the_score() -> None:
     card = load_card(ROOT / "scoring" / "scorecard.yaml")
     assert sorted(f["id"] for f in card["flag_types"] if f["severity"] == "critical") == [
         "agent_handled_esign", "approval_before_uw", "ignored_end_request"]
+
+
+def test_the_record_saying_application_gets_the_sale_check_even_when_the_call_reads_as_a_callback(
+        client: TestClient, app: FastAPI, settings: Settings, hand_over) -> None:
+    from scoring.output import normalize_score
+    from scoring.scorecard import load_card
+    from api.config import ROOT
+    card = load_card(ROOT / "scoring" / "scorecard.yaml")
+    given = [{"signal": "knows_carrier", "answer": "yes", "timestamp": "12:36"}]
+    callback = _answer(card, call_outcome="callback", sale=None, retention=given)
+    assert normalize_score(callback, card, speakers={"SPEAKER_0"})["retention"] is None
+    known = normalize_score(callback, card, speakers={"SPEAKER_0"}, known_sale=True)
+    assert known["call_outcome"] == "callback" and known["sale"] is None       # the model's reading of the call stands
+    assert {r["signal"]: r["answer"] for r in known["retention"]}["knows_carrier"] == "yes"
+
+    seen: list[bool] = []
+
+    class Watching(Scorer):
+        def score(self, res: TranscriptResult) -> dict:
+            seen.append(bool(getattr(res, "known_sale", False)))
+            return super().score(res)
+
+    hand_over("sold:1", sale="true")
+    hand_over("plain:1")
+    assert (_get(app, "tqc-sold-1").known_sale, _get(app, "tqc-plain-1").known_sale) == (True, False)
+    _finish(app, settings, "tqc-sold-1", Watching())
+    _finish(app, settings, "tqc-plain-1", Watching())
+    assert seen == [True, False]
+    assert "known_sale" not in _get(app, "tqc-sold-1").transcript_json      # not part of the stored transcript
+
+
+def test_the_scorer_is_told_about_the_record_outside_the_transcript() -> None:
+    import os
+    from scoring.rate_call import CallScorer
+    os.environ.setdefault("ANTHROPIC_API_KEY", "test")
+    scorer = CallScorer()
+    sent: list[dict] = []
+
+    class Stop(Exception):
+        pass
+
+    def create(**kw: Any):
+        sent.append(kw)
+        raise Stop
+
+    scorer.client.beta.messages.create = create       # type: ignore[method-assign]
+    for known in (True, False):
+        try:
+            scorer._send("[00:01] SPEAKER_0: the record shows an application", "c1", 60.0, known)
+        except Stop:
+            pass
+    with_note, without = (m["messages"][0]["content"] for m in sent)
+    assert "The record shows this call's customer went on to an application" in with_note.split("<transcript>")[0]
+    assert "went on to an application" not in without.split("<transcript>")[0]

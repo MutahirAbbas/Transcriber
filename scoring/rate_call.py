@@ -75,7 +75,7 @@ class CallScorer:
         )
         flags = "\n".join(f"- {f['id']} ({f['severity']}): {f['label']}" for f in card["flag_types"])
         phrases = "\n".join(
-            f'- "{r["phrase"]}" (missing raises {r["flag"]})'
+            f'- "{r["phrase"]}"' + (f' (missing raises {r["flag"]})' if r.get("flag") else "")
             + ("; only counts if said before any personal data is collected" if r.get("before_personal_data") else "")
             for r in card["required_phrases"]
         )
@@ -117,7 +117,8 @@ COACHING TYPES. Every "coach" finding names the one habit it is an example of, a
 using only these ids. Use "other" when none fits; never stretch a habit to fit:
 {habits}
 
-SALE CHECK. Only when `call_outcome` is "sale": answer every item below with "yes", "no" or
+SALE CHECK. Only when `call_outcome` is "sale", or the message says the record shows an
+application: answer every item below with "yes", "no" or
 "unclear", and the timestamp of the moment that shows it (null when "unclear" or when it never
 happened). These are facts about what was said, not a judgement of the agent and not a
 prediction. When the outcome is anything else, `retention` is null:
@@ -155,19 +156,23 @@ object of this shape, no prose before or after:
   "work_on_next": {{ "intro": "...", "items": ["..."] }}
 }}"""
 
-    def _send(self, text: str, call_id: str, duration_s: float):
+    def _send(self, text: str, call_id: str, duration_s: float, known_sale: bool = False):
+        # a fact from the sender's own record, stated outside the transcript so nothing said on a call can fake it
+        note = ("\nThe record shows this call's customer went on to an application: answer the SALE CHECK "
+                "from what was said on this call, whatever outcome you judge this call itself to have had.") if known_sale else ""
         request = dict(
             model=self.model,
             max_tokens=MAX_OUTPUT_TOKENS,
             system=self.system,
-            messages=[{"role": "user", "content": f"Call ID: {call_id}\nDuration: {_fmt_ts(duration_s)}\n\n<transcript>\n{_fence(text)}\n</transcript>"}],
+            messages=[{"role": "user", "content": f"Call ID: {call_id}\nDuration: {_fmt_ts(duration_s)}{note}\n\n<transcript>\n{_fence(text)}\n</transcript>"}],
         )
         # a classifier decline is re-run on another model inside this same call
         return self.client.beta.messages.create(betas=[FALLBACK_BETA], fallbacks="default", **request)
 
     def score(self, res: TranscriptResult) -> dict:
         text = transcript_to_text(res)
-        msg = self._send(text, res.call_id, res.audio_duration_s)
+        known_sale = bool(getattr(res, "known_sale", False))
+        msg = self._send(text, res.call_id, res.audio_duration_s, known_sale)
         raw = _served_text(msg.content)
         iterations = getattr(msg.usage, "iterations", None) or []
         meta = {
@@ -189,7 +194,7 @@ object of this shape, no prose before or after:
             return {"parse_error": True, "reason": "output truncated at max_tokens", "raw": raw, "_meta": meta}
         try:
             data = normalize_score(json.loads(_extract_json(raw), parse_constant=reject_constant), self.card,
-                                   speakers={s.speaker for s in res.segments if s.speaker})
+                                   speakers={s.speaker for s in res.segments if s.speaker}, known_sale=known_sale)
         except json.JSONDecodeError as e:
             return {"parse_error": True, "reason": f"invalid JSON: {e}", "raw": raw, "_meta": meta}
         except ScoreInvalid as e:

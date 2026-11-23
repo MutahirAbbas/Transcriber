@@ -31,7 +31,7 @@ def _problems(card: dict[str, Any]) -> list[str]:
     out += [f"flag {f['id']} has unknown severity {f.get('severity')}"
             for f in flags.values() if f.get("severity") not in SEVERITIES]
     out += [f"required phrase {r['phrase']!r} maps to unknown flag {r.get('flag')}"
-            for r in card.get("required_phrases") or [] if r.get("flag") not in flags]
+            for r in card.get("required_phrases") or [] if r.get("flag") is not None and r.get("flag") not in flags]
     out += [f"phase {p['id']} maps to unknown category {p.get('category')}"
             for p in card.get("phases") or [] if p.get("category") not in cats]
     coach = card.get("coach_types") or []
