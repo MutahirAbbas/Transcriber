@@ -206,7 +206,18 @@ def test_an_old_hour_long_file_is_cut_to_the_length_asked_for(app: FastAPI, hand
     assert _get(app, "tqc-old-1").duration_s == pytest.approx(10.0, abs=0.2)
 
 
-def test_a_file_shorter_than_the_cut_is_left_alone(app: FastAPI, hand_over) -> None:
+def test_the_stored_file_is_one_we_wrote_not_the_raw_upload(client: TestClient, app: FastAPI, settings: Settings,
+                                                           make_wav) -> None:
+    raw = make_wav("tagged.wav", seconds=2.0).read_bytes() + b"LIST\x10\x00\x00\x00INFOtrailing-junk-from-sender"
+    r = client.post("/api/ingest/calls", headers=H, files={"file": ("tagged.wav", raw, "audio/wav")},
+                    data={"external_id": "raw:1"})
+    assert r.status_code == 201 and r.json()["status"] == "queued", r.text
+    stored = (settings.uploads_dir / "tqc-raw-1.wav").read_bytes()
+    assert stored != raw and b"trailing-junk-from-sender" not in stored
+    assert _get(app, "tqc-raw-1").duration_s == pytest.approx(2.0, abs=0.1)
+
+
+def test_a_file_shorter_than_the_cut_keeps_its_full_length(app: FastAPI, hand_over) -> None:
     hand_over("short:1", seconds=6.0, clip_s=600)
     assert _get(app, "tqc-short-1").duration_s == pytest.approx(6.0, abs=0.1)
 
@@ -224,6 +235,19 @@ def test_a_playlist_dressed_as_audio_is_never_followed(client: TestClient, app: 
                         data={"external_id": name.replace(".", "-"), "clip_s": "10"})
         assert r.status_code == 201 and r.json()["status"] == "error", name
     assert not list(settings.uploads_dir.glob("*"))
+
+
+@pytest.mark.parametrize("ext", ["mp3", "m4a", "ogg", "flac", "aac", "webm", "wav"])
+def test_every_accepted_format_is_rewritten_and_cut_to_length(tmp_path: Path, ext: str) -> None:
+    import subprocess
+    from api.media import probe_strict, rewrite_audio
+    path = tmp_path / f"tone.{ext}"
+    subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=20",
+                    "-ac", "1", "-ar", "8000", str(path)], check=True)
+    rewrite_audio(path)
+    assert probe_strict(path)[0] == pytest.approx(20.0, abs=0.3)
+    rewrite_audio(path, 8.0)
+    assert probe_strict(path)[0] == pytest.approx(8.0, abs=0.3)
 
 
 # ---- the queue -----------------------------------------------------------------------

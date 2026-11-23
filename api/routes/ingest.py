@@ -20,7 +20,7 @@ from sqlmodel import Session, col, select
 from api import derive, repo
 from api.db import get_session
 from api.media import (
-    MAX_DURATION_S, MAX_UPLOAD_BYTES, UnreadableAudio, UploadTooLarge, audio_ext, clip_audio, probe_strict,
+    MAX_DURATION_S, MAX_UPLOAD_BYTES, UnreadableAudio, UploadTooLarge, audio_ext, probe_strict, rewrite_audio,
     save_upload,
 )
 from api.models import TERMINAL, Call, CallStatus
@@ -122,10 +122,10 @@ def hand_over(
         except UploadTooLarge:
             raise HTTPException(413, f"Larger than {MAX_UPLOAD_BYTES // 1_000_000} MB") from None
         try:
+            duration, _ = probe_strict(incoming)
+            # always rewritten, cut or not: the stored file is one ffmpeg made, never the raw upload
+            rewrite_audio(incoming, clip_s if clip_s is not None and duration > clip_s else None)
             duration, stereo = probe_strict(incoming)
-            if clip_s is not None and duration > clip_s:
-                clip_audio(incoming, clip_s)
-                duration, stereo = probe_strict(incoming)
             if duration > MAX_DURATION_S:
                 raise HTTPException(400, "Longer than 2 hours")
             row.duration_s, row.stereo = duration, stereo

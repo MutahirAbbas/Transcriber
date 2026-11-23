@@ -114,19 +114,27 @@ def probe_strict(path: Path) -> tuple[float, bool]:
         raise UnreadableAudio("Not a readable audio file") from e
 
 
-def clip_audio(path: Path, seconds: float) -> None:
-    """Keep only the first `seconds` of a file, in place. Stream copy: no re-encode, no quality loss."""
-    tmp = path.with_name(f"{path.stem}.clip{path.suffix}")
+def rewrite_audio(path: Path, seconds: float | None = None) -> None:
+    """Replace a handed-over file with a copy ffmpeg wrote itself, optionally only its first `seconds`.
+
+    What is stored is then never the sender's raw bytes: later steps (waveform, the Mac's
+    transcriber) guess a file's type from its contents, and a file ffmpeg wrote from one named
+    format cannot be read by them as anything else. No quality loss."""
+    tmp = path.with_name(f"{path.stem}.clean{path.suffix}")
+    cut = ["-t", f"{seconds:.3f}"] if seconds is not None else []
+    # a FLAC header states its own length, and a stream copy keeps the old one: a cut FLAC is
+    # written again (still lossless) so the length it reports is the length it has
+    codec = "flac" if cut and path.suffix.lower() == ".flac" else "copy"
     try:
         subprocess.run(
-            ["ffmpeg", "-nostdin", "-loglevel", "error", "-y", *_strict_input(path),
-             "-t", f"{seconds:.3f}", "-vn", "-c", "copy", str(tmp)],
+            ["ffmpeg", "-nostdin", "-loglevel", "error", "-y", *_strict_input(path), *cut,
+             "-map", "0:a:0", "-vn", "-sn", "-dn", "-map_metadata", "-1", "-c", codec, str(tmp)],
             check=True, capture_output=True, timeout=300,
         )
         tmp.replace(path)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
         tmp.unlink(missing_ok=True)
-        raise UnreadableAudio("Could not cut the recording to length") from e
+        raise UnreadableAudio("Not a readable audio file") from e
 
 
 class UnreadableAudio(Exception):
