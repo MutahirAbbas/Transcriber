@@ -211,6 +211,21 @@ def test_a_file_shorter_than_the_cut_is_left_alone(app: FastAPI, hand_over) -> N
     assert _get(app, "tqc-short-1").duration_s == pytest.approx(6.0, abs=0.1)
 
 
+def test_a_playlist_dressed_as_audio_is_never_followed(client: TestClient, app: FastAPI, settings: Settings,
+                                                      tmp_path: Path) -> None:
+    secret = tmp_path / "secret.wav"
+    secret.write_bytes(b"RIFF....WAVEfmt ")
+    for name, body in [
+        ("list.mp3", f"#EXTM3U\n#EXTINF:10,\nfile://{secret}\n".encode()),
+        ("list.wav", b"#EXTM3U\n#EXTINF:10,\nhttp://127.0.0.1:9/never.ts\n"),
+        ("script.ogg", f"ffconcat version 1.0\nfile '{secret}'\n".encode()),
+    ]:
+        r = client.post("/api/ingest/calls", headers=H, files={"file": (name, body, "audio/mpeg")},
+                        data={"external_id": name.replace(".", "-"), "clip_s": "10"})
+        assert r.status_code == 201 and r.json()["status"] == "error", name
+    assert not list(settings.uploads_dir.glob("*"))
+
+
 # ---- the queue -----------------------------------------------------------------------
 
 def test_new_calls_go_before_backlog_calls_whatever_their_age(client: TestClient, app: FastAPI, hand_over) -> None:

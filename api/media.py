@@ -86,12 +86,41 @@ def find_audio(directory: Path, call_id: str) -> Path | None:
     return next(iter(sorted(directory.glob(f"{call_id}.*"))), None)
 
 
+# The demuxer each accepted extension is read with. Naming it stops ffmpeg from guessing by
+# content: a playlist or script saved as "x.mp3" is then just a broken mp3, never something that
+# makes ffmpeg open other files or fetch a URL.
+_DEMUXER = {
+    ".wav": "wav", ".mp3": "mp3", ".m4a": "mov", ".aac": "aac", ".flac": "flac",
+    ".ogg": "ogg", ".oga": "ogg", ".opus": "ogg", ".webm": "matroska",
+}
+
+
+def _strict_input(path: Path) -> list[str]:
+    """ffmpeg / ffprobe input options for a file we did not make: local file only, one known format."""
+    return ["-protocol_whitelist", "file", "-f", _DEMUXER[path.suffix.lower()], "-i", str(path)]
+
+
+def probe_strict(path: Path) -> tuple[float, bool]:
+    """`probe` for a file handed over by another system: never follows it anywhere."""
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=channels:format=duration",
+             "-of", "default=noprint_wrappers=1", *_strict_input(path)],
+            capture_output=True, text=True, check=True, timeout=120,
+        ).stdout
+        fields = dict(line.split("=", 1) for line in out.splitlines() if "=" in line)
+        return float(fields["duration"]), int(fields["channels"]) == 2
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, KeyError, ValueError) as e:
+        raise UnreadableAudio("Not a readable audio file") from e
+
+
 def clip_audio(path: Path, seconds: float) -> None:
     """Keep only the first `seconds` of a file, in place. Stream copy: no re-encode, no quality loss."""
     tmp = path.with_name(f"{path.stem}.clip{path.suffix}")
     try:
         subprocess.run(
-            ["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", str(path), "-t", f"{seconds:.3f}", "-c", "copy", str(tmp)],
+            ["ffmpeg", "-nostdin", "-loglevel", "error", "-y", *_strict_input(path),
+             "-t", f"{seconds:.3f}", "-vn", "-c", "copy", str(tmp)],
             check=True, capture_output=True, timeout=300,
         )
         tmp.replace(path)
