@@ -297,7 +297,7 @@ def test_a_finished_review_carries_everything_and_the_audio_is_gone(client: Test
     assert item["engine"]["transcriber"] == "whisper_local/whisper-large-v3-turbo"
     card = item["scorecard"]
     assert card["version"] == app.state.scorecard.version
-    assert {"id": "compliance", "label": app.state.scorecard.labels["compliance"]} in card["categories"]
+    assert {"id": "compliance", "label": app.state.scorecard.labels["compliance"], "weight": 15} in card["categories"]
     assert item["finished_at"].endswith("Z")
 
 
@@ -423,3 +423,99 @@ def test_a_database_from_before_this_change_is_upgraded_in_place(tmp_path: Path)
         assert (old.source, old.external_id, old.is_test, old.backlog, old.score_attempts, old.finished_at) == (
             "upload", None, False, False, 0, None)
     make_engine(db)       # starting again changes nothing and does not fail
+
+
+# ---- in progress ---------------------------------------------------------------------
+
+def test_in_progress_shows_the_stage_the_start_time_and_the_place_in_line(client: TestClient, app: FastAPI,
+                                                                          signed_in: TestClient, make_wav, hand_over) -> None:
+    hand_over("b:1", backlog="true")
+    with make_wav("mine.wav").open("rb") as f:            # a hand upload waits in the same line
+        signed_in.post("/api/calls", files={"files": ("mine.wav", f, "audio/wav")})
+    hand_over("n:1")
+    hand_over("n:2")
+    with Session(app.state.engine) as s:
+        for i, row in enumerate(s.exec(select(Call).order_by(Call.id)).all()):
+            row.uploaded_at = utcnow() - timedelta(minutes=30 - i)
+            s.add(row)
+        s.commit()
+    assert client.get("/api/ingest/in-progress", headers={}).status_code == 401
+    before = {i["external_id"]: i for i in client.get("/api/ingest/in-progress", headers=H).json()["items"]}
+    assert all(i["status"] == "queued" and i["started_at"] is None for i in before.values())
+    assert before["b:1"]["ahead"] == 3                     # every new call, the hand upload included
+    assert sorted(i["ahead"] for k, i in before.items() if k != "b:1") != [None, None]
+
+    claimed = client.post("/api/worker/claim", json={"worker_id": "mac-1"}, headers=MAC).json()["call_id"]
+    after = client.get("/api/ingest/in-progress", headers=H).json()["items"]
+    now_running = [i for i in after if i["status"] == "transcribing"]
+    if claimed.startswith("tqc-"):
+        assert len(now_running) == 1 and now_running[0]["started_at"].endswith("Z") and now_running[0]["ahead"] is None
+    assert {i["external_id"]: i for i in after}["b:1"]["ahead"] == 2
+
+
+def test_a_finished_call_leaves_in_progress(client: TestClient, app: FastAPI, settings: Settings, hand_over) -> None:
+    hand_over("opp1:rec1")
+    _finish(app, settings, "tqc-opp1-rec1")
+    assert client.get("/api/ingest/in-progress", headers=H).json() == {"items": []}
+
+
+# ---- coaching types ------------------------------------------------------------------
+
+def test_coaching_carries_a_habit_from_the_scorecard_and_unknown_ones_become_other() -> None:
+    from scoring.output import normalize_score
+    from scoring.scorecard import load_card
+    from api.config import ROOT
+    card = load_card(ROOT / "scoring" / "scorecard.yaml")
+    answer = v2_score()
+    answer["scores"] = {key: {"score": 6, "evidence": "e"} for key in card["categories"]}
+    answer["required_phrases"] = [{"phrase": r["phrase"], "present": True, "timestamp": "00:05"} for r in card["required_phrases"]]
+    answer["findings"] = [
+        {"kind": "coach", "coach_type": "quoted_before_budget", "category": "close", "timestamp": "09:30", "text": "t", "better": "b"},
+        {"kind": "coach", "coach_type": "made_up_habit", "category": "discovery", "timestamp": "10:00", "text": "t", "better": "b"},
+        {"kind": "coach", "category": "discovery", "timestamp": "11:00", "text": "t", "better": "b"},
+    ]
+    coach = [f for f in normalize_score(answer, card, speakers={"SPEAKER_0"})["findings"] if f["kind"] == "coach"]
+    assert [(f["coach_type"], f["category"]) for f in coach] == [
+        ("quoted_before_budget", "discovery"),       # the scorecard's category, not the model's
+        ("other", "discovery"), ("other", "discovery")]
+    assert coach[0]["label"] == "Ask about budget before you quote"
+
+
+def test_the_scorer_is_told_the_habits_and_no_try_line_reaches_it() -> None:
+    from scoring.rate_call import CallScorer
+    import os
+    os.environ.setdefault("ANTHROPIC_API_KEY", "test")
+    system = CallScorer().system
+    assert "quoted_before_budget (discovery): Ask about budget before you quote" in system
+    assert "what would feel comfortable each month" not in system     # approved lines are shown, not generated
+
+
+def test_a_review_carries_the_habit_list_with_its_approved_lines_and_the_weights(client: TestClient, app: FastAPI,
+                                                                                 settings: Settings, hand_over) -> None:
+    hand_over("opp1:rec1")
+    _finish(app, settings, "tqc-opp1-rec1")
+    card = client.get("/api/ingest/calls/opp1:rec1", headers=H).json()["scorecard"]
+    assert card["version"] == 3
+    habit = next(c for c in card["coach_types"] if c["id"] == "callback_without_time")
+    assert habit["label"] == "Give every callback a day and a time" and habit["try"].startswith("Does Thursday")
+    assert sum(c["weight"] for c in card["categories"]) == 100
+    assert card["compliance_cap"] == {"if_any": "critical", "max_score": 3}
+    assert {"id": "ignored_end_request", "label": "Continued after a request to end the call", "severity": "critical"} in card["flag_types"]
+
+
+@pytest.mark.parametrize("broken, problem", [
+    ([{"id": "a", "category": "close", "label": "A"}], "needs an 'other' type"),
+    ([{"id": "other", "category": "general", "label": "O"}, {"id": "other", "category": "general", "label": "O"}], "must be unique"),
+    ([{"id": "other", "category": "general", "label": "O"}, {"id": "a", "category": "nope", "label": "A"}], "unknown category"),
+    ([{"id": "other", "category": "general", "label": ""}], "has no label"),
+])
+def test_a_bad_habit_list_stops_the_app_at_startup(tmp_path: Path, broken: list, problem: str) -> None:
+    import yaml
+    from scoring.scorecard import load_card
+    from api.config import ROOT
+    card = yaml.safe_load((ROOT / "scoring" / "scorecard.yaml").read_text())
+    card["coach_types"] = broken
+    path = tmp_path / "scorecard.yaml"
+    path.write_text(yaml.safe_dump(card))
+    with pytest.raises(ValueError, match=problem):
+        load_card(path)

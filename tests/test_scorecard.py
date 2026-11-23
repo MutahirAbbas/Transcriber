@@ -19,9 +19,9 @@ def _broken(tmp_path: Path, change) -> Path:
     return path
 
 
-def test_the_real_scorecard_is_v2_and_loads() -> None:
+def test_the_real_scorecard_is_v3_and_loads() -> None:
     card = load_scorecard(REAL)
-    assert card.version == 2 and card.target_score == 60
+    assert card.version == 3 and card.target_score == 60
     assert card.categories == ["opening", "discovery", "value_presentation", "objection_handling", "compliance", "close"]
     assert card.labels["value_presentation"] == "Value" and card.labels["objection_handling"] == "Objections"
     assert card.required_phrases == ["recorded line", "licensed agent"]

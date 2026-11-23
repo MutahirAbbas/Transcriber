@@ -51,7 +51,7 @@ def claim(engine: Engine, worker_id: str, now: datetime | None = None) -> Call |
                     update(Call)
                     .where(col(Call.id) == call_id, col(Call.status) == CallStatus.queued)
                     .values(status=CallStatus.transcribing, lease_until=now + LEASE, attempts=Call.attempts + 1,
-                            worker_id=worker_id, progress=0.0, error=None)
+                            worker_id=worker_id, progress=0.0, error=None, started_at=now)
                 ).rowcount == 1
                 s.commit()
             except OperationalError:   # lost a write race on the database lock; try again

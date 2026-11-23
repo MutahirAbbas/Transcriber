@@ -1,7 +1,7 @@
 # Final-expense sales call scorecard.
 # This is a STARTER. The real one comes from Leo / the top closers — replace freely.
 # Each category: label, weight (sums to 100) and what a 10 vs a 3 looks like.
-version: 2
+version: 3
 target_score: 60
 
 categories:
@@ -57,6 +57,35 @@ flag_types:
   - {id: carrier_after_payment,     label: "Carrier named after payment data",     severity: major}
   - {id: health_answer_prejudged,   label: "Health answer pre-judged or misrecorded", severity: major}
   - {id: pressure_tactics,          label: "Fear, shame or pressure tactics",      severity: major}
+
+# The ONLY habits the scorer may name on a "coach" finding. `label` is what the agent reads.
+# `try` is the approved line the agent is shown (never written by the model); `try_es` its
+# Spanish. DRAFTS: Leo rewrites the lines. No line may make a claim about a product.
+# `other` is for anything else worth a manager's eye: it is never counted as a habit.
+coach_types:
+  - {id: slow_opening,              category: opening,            label: "Say who you are and why you are calling in the first 30 seconds"}
+  - {id: no_right_person_check,     category: opening,            label: "Check you are speaking to the right person"}
+  - {id: quoted_before_budget,      category: discovery,          label: "Ask about budget before you quote",
+     try: "Before I show you plans, what would feel comfortable each month?"}
+  - {id: skipped_existing_coverage, category: discovery,          label: "Ask what coverage they already have",
+     try: "Do you have any life insurance in place today?"}
+  - {id: skipped_who_to_protect,    category: discovery,          label: "Ask who they want to protect",
+     try: "Who would be handling things for you when the time comes?"}
+  - {id: talked_over_customer,      category: discovery,          label: "Let the customer finish before you answer"}
+  - {id: plan_not_tied_to_need,     category: value_presentation, label: "Tie the plan to what the customer told you"}
+  - {id: plan_type_unclear,         category: value_presentation, label: "Say the plan type and any waiting period in plain words"}
+  - {id: dodged_price_question,     category: objection_handling, label: "Answer the price question directly"}
+  - {id: argued_with_objection,     category: objection_handling, label: "Acknowledge the concern before you answer it",
+     try: "That makes sense. Can I ask what part worries you most?"}
+  - {id: spouse_not_offered_3way,   category: objection_handling, label: "Offer a three-way call when a spouse is mentioned",
+     try: "Would it help to get them on the line with us now?"}
+  - {id: callback_without_time,     category: close,              label: "Give every callback a day and a time",
+     try: "Does Thursday at 4 work, or is Friday morning better?"}
+  - {id: no_ask_for_sale,           category: close,              label: "Ask for the next step",
+     try: "Shall we get the application started?"}
+  - {id: details_not_read_back,     category: close,              label: "Read the details back before you finish",
+     try: "Let me read that back to make sure I have it right."}
+  - {id: other,                     category: general,            label: "Something else worth coaching"}
 
 # Each maps to the flag raised when it's missing.
 required_phrases:

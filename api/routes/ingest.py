@@ -209,8 +209,10 @@ def _review(request: Request, session: Session, call: Call) -> dict[str, Any]:
         # a copy of the names in force when it was scored, so the sender never needs this service to label them
         "scorecard": {
             "version": card.version, "target_score": card.target_score,
-            "categories": [{"id": key, "label": card.labels.get(key, key)} for key in card.categories],
+            "categories": [{"id": key, "label": card.labels.get(key, key), "weight": card.weights.get(key)}
+                           for key in card.categories],
             "phases": card.phases, "required_phrases": card.required_phrases,
+            "flag_types": card.flag_types, "coach_types": card.coach_types, "compliance_cap": card.compliance_cap,
         },
     }
 
@@ -255,6 +257,30 @@ def changes(
         "cursor": _iso(rows[-1].finished_at) if rows else _iso(since),
         "more": more,
     }
+
+
+@router.get("/in-progress", dependencies=[Authed])
+def in_progress(session: SessionDep) -> dict[str, Any]:
+    """Every handed-over call that is not finished: its stage, when a transcriber picked it up,
+    and for one still in line how many calls go before it (new calls before backlog)."""
+    rows = session.exec(
+        select(Call).where(col(Call.status).not_in(TERMINAL), col(Call.cancelled_at).is_(None),
+                           col(Call.transcript_json).is_(None) | (Call.source == SOURCE))
+        .order_by(col(Call.backlog), col(Call.uploaded_at))
+    ).all()
+    items, ahead = [], 0
+    for call in rows:       # the order the transcriber takes them in; hand uploads count as "ahead" too
+        queued = call.status == CallStatus.queued
+        if call.source == SOURCE:
+            items.append({
+                "external_id": call.external_id, "status": call.status.value, "is_test": call.is_test,
+                "backlog": call.backlog, "received_at": _iso(call.uploaded_at),
+                "started_at": _iso(call.started_at) if not queued else None,
+                "ahead": ahead if queued else None, "attempts": call.attempts,
+            })
+        if queued:
+            ahead += 1
+    return {"items": items}
 
 
 @router.get("/status", dependencies=[Authed])

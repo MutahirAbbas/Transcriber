@@ -80,6 +80,7 @@ class CallScorer:
             for r in card["required_phrases"]
         )
         phases = "\n".join(f"- {p['id']}: {p['label']}" for p in card["phases"])
+        habits = "\n".join(f"- {c['id']} ({c['category']}): {c['label']}" for c in card["coach_types"])
         return f"""You are a QA coach for a final-expense life insurance call center. You score
 recorded sales calls against a fixed scorecard and produce coaching notes a team lead
 can act on. Be specific, cite timestamps, and don't inflate scores.
@@ -111,6 +112,10 @@ FINDINGS. Three kinds, each with the `category` it belongs to:
 - "coach": a moment to coach; `text` is what happened, `better` is what to do instead
 - "good": something worth repeating
 
+COACHING TYPES. Every "coach" finding names the one habit it is an example of, as `coach_type`,
+using only these ids. Use "other" when none fits; never stretch a habit to fit:
+{habits}
+
 NEVER INVENT. `customer` and `sale` fields are null unless they were said on the call. `sale` is
 null unless the outcome is "sale". `agent_name` is null unless the agent says it.
 
@@ -135,7 +140,7 @@ object of this shape, no prose before or after:
   "phases": [ {{ "phase": "<phase id>", "start": "mm:ss" }} ],
   "findings": [
     {{ "kind": "flag", "flag_type": "<flag id>", "category": "compliance", "timestamp": "mm:ss", "text": "..." }},
-    {{ "kind": "coach", "category": "<category>", "timestamp": "mm:ss", "text": "...", "better": "..." }},
+    {{ "kind": "coach", "coach_type": "<coach type id>", "category": "<category>", "timestamp": "mm:ss", "text": "...", "better": "..." }},
     {{ "kind": "good", "category": "<category>", "timestamp": "mm:ss", "text": "..." }}
   ],
   "required_phrases": [ {{ "phrase": "...", "present": true, "timestamp": "mm:ss" }} ],

@@ -22,6 +22,10 @@ class Scorecard:
     target_score: int = 60
     labels: dict[str, str] = field(default_factory=dict)     # category key → label
     phases: list[dict] = field(default_factory=list)         # {id, label, category}, in bar order
+    weights: dict[str, int] = field(default_factory=dict)    # category key → weight
+    flag_types: list[dict] = field(default_factory=list)     # {id, label, severity}
+    coach_types: list[dict] = field(default_factory=list)    # {id, category, label, try?, try_es?}
+    compliance_cap: dict = field(default_factory=dict)
 
 
 WORKER_MODES = ("local", "remote")
@@ -85,4 +89,8 @@ def load_scorecard(path: Path) -> Scorecard:
         target_score=card["target_score"],
         labels={key: c["label"] for key, c in card["categories"].items()},
         phases=card["phases"],
+        weights={key: c["weight"] for key, c in card["categories"].items()},
+        flag_types=card["flag_types"],
+        coach_types=card.get("coach_types") or [],
+        compliance_cap=card["compliance_cap"],
     )

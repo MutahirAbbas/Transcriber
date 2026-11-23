@@ -292,7 +292,7 @@ def test_scorer_version_is_card_version_and_prompt_hash(scorer: CallScorer) -> N
     import hashlib
     stub(scorer, message(text(answer())))
     version = scorer.score(RES)["_meta"]["scorer_version"]
-    assert version == "2." + hashlib.sha256(scorer.system.encode()).hexdigest()[:8]
+    assert version == "3." + hashlib.sha256(scorer.system.encode()).hexdigest()[:8]
 
 
 def test_only_the_first_text_block_is_read(scorer: CallScorer) -> None:

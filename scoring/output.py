@@ -109,6 +109,7 @@ def _findings(value: Any, card: dict[str, Any]) -> tuple[list[dict[str, Any]], i
     if not isinstance(value, list):
         raise ScoreInvalid("findings missing")
     flag_types = {f["id"]: f for f in card["flag_types"]}
+    coach_types = {c["id"]: c for c in card.get("coach_types") or []}
     out: list[dict[str, Any]] = []
     dropped = coaches = 0
     for i, f in enumerate(value):
@@ -133,6 +134,12 @@ def _findings(value: Any, card: dict[str, Any]) -> tuple[list[dict[str, Any]], i
             if coaches > MAX_COACH:
                 continue
             item["better"] = _text(f.get("better"), f"{where}.better")
+            if coach_types:
+                # a habit the scorecard doesn't list is kept as "other", so it is never counted as one
+                habit = coach_types.get(f.get("coach_type")) or coach_types["other"]
+                item.update(coach_type=habit["id"], label=habit["label"])
+                if habit["id"] != "other":
+                    item["category"] = habit["category"]   # the scorecard's, not the model's guess
         out.append(item)
     if dropped:
         log.warning("scorer raised %d flag(s) outside flag_types; dropped", dropped)
